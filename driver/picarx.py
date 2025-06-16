@@ -1,5 +1,7 @@
 from robot_hat import Pin, ADC, PWM, Servo, fileDB
 from robot_hat import Grayscale_Module, Ultrasonic, utils
+from vilib import Vilib
+from picamera2 import Picamera2
 import time
 import os
 
@@ -92,6 +94,11 @@ class Picarx(object):
         trig, echo= ultrasonic_pins
         self.ultrasonic = Ultrasonic(Pin(trig), Pin(echo, mode=Pin.IN, pull=Pin.PULL_DOWN))
         
+        # --------- Camera ------------------
+        self.fps = 60
+        self.camera_width = 640
+        self.camera_height = 480
+        self.camera_started = False
 
         # -------- custom control ---------
         self.left_motor_base_power = 0
@@ -100,6 +107,16 @@ class Picarx(object):
         self.right_motor_differential_power = 0
         self.pan_angle=0
         self.tilt_angle=0
+
+    def start_camera(self, motor, speed):
+        self.cam = Picamera2()
+        try:
+            self.cam.start()
+        except Exception as e:
+            print(f"Failed to initialize camera")
+        
+    def capture_camera(self):
+        self.cam.capture_array()
 
     def set_motor_speed(self, motor, speed):
         ''' set motor speed
@@ -226,10 +243,10 @@ class Picarx(object):
         #Turning right
         if self.dir_current_angle > 0:
             self.right_motor_differential_power = int(200 * power_scale)
-            self.left_motor_differential_power = 0
+            self.left_motor_differential_power = - int(200 * power_scale)
         elif self.dir_current_angle < 0:
             self.left_motor_differential_power = int(200 * power_scale)
-            self.right_motor_differential_power = 0
+            self.right_motor_differential_power = - int(200 * power_scale)
         else:
             self.right_motor_differential_power = 0
             self.left_motor_differential_power = 0

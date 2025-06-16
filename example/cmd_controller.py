@@ -38,18 +38,6 @@ def flush_stdin():
         else:
             break
 
-manual = '''
-Press key to call the function(non-case sensitive):
-
-    W: forward  
-    S: backward
-    A: turn left
-    D: turn right
-    T: take photo
-
-    Ctrl+C: quit
-'''
-
 KEY_MAP = {
     'w': 'forward',
     's': 'backward',
@@ -64,12 +52,9 @@ KEY_MAP = {
     "t": 'hi'
 }
 
-def take_photo():
-    _time = strftime('%Y-%m-%d-%H-%M-%S',localtime(time()))
-    name = 'photo_%s'%_time
-    path = f"{user_home}/Pictures/picar-x/"
-    Vilib.take_photo(name, path)
-    print('\nphoto save as %s%s.jpg'%(path,name))
+manual = 'Press key to call the function (non-case sensitive)'
+for k, v in KEY_MAP.items():
+    manual += f"\n{k}:{v}"
 
 def main(px):
 
@@ -77,14 +62,14 @@ def main(px):
     Vilib.display(local=True,web=True)
     sleep(2)  # wait for startup
     print(manual)
-
+    
     tts.lang("en-US")
 
     run = True
     while run:
         flush_stdin()
         sleep(0.10)
-        c = sys.stdin.read(1)
+        c = sys.stdin.read(1).lower()
         if c in KEY_MAP:
             cmd = KEY_MAP[c]
             if cmd == "forward":

@@ -1,0 +1,1 @@
+ros2 run camera_ws_client ws_camera_subscriber

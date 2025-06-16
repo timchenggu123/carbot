@@ -1,0 +1,25 @@
+services:
+  ros2:
+    build: .
+    image: ros2-autobot:humble
+    container_name: ros2_ws_client
+    privileged: true  # Required for /dev access
+    cap_add:
+      - SYS_RAWIO
+      - SYS_ADMIN
+    devices:
+      - /dev/i2c-1
+      - /dev/spidev0.0
+    volumes:
+      - .:/src
+      - /sys:/sys
+      - /dev:/dev
+      - /run/udev:/run/udev
+    stdin_open: true
+    tty: true
+    network_mode: host
+    environment:
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DOMAIN_ID=0
+      - HOST_IP=10.0.0.3
+    command: bash
