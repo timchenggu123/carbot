@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import threading
 
-class CameraWSClient(Node):
+class UpstreamClient(Node):
     def __init__(self):
         super().__init__('camera_ws_client')
         self.publisher_ = self.create_publisher(Image, 'camera/image_raw', 10)
@@ -48,7 +48,7 @@ class CameraWSClient(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CameraWSClient()
+    node = UpstreamClient()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

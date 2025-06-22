@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>camera_ws_client</name>
+  <name>upstream_relay_client</name>
   <version>0.0.0</version>
   <description>camera websocket client</description>
   <maintainer email="2013tim.g@gmail.com">root</maintainer>
