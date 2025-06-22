@@ -35,7 +35,8 @@ class CameraWSClient(Node):
             while rclpy.ok():
                 try:
                     msg = await websocket.recv()
-                    jpeg_bytes = base64.b64decode(msg)
+                    camera_data = msg["camera"]
+                    jpeg_bytes = base64.b64decode(camera_data)
                     np_arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
                     cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 

@@ -1,24 +1,70 @@
-from flask import Flask, render_template, Response
-import os
+import asyncio
+import websockets
+import cv2
+import base64
+import json
+from autobot.sensors import ultrasonic, lidar
 
+# Open default camera
+cap = cv2.VideoCapture(0)
 
-os.environ['FLASK_DEBUG'] = 'development'
-app = Flask(__name__)
-@app.route('/')
-def home():
-    return render_template('index.html')
+async def get_camera():
+    ret, frame = cap.read()
+    if not ret:
+        return None
 
-@app.route('/mjpg.jpg')
-def getjpg():
-    return 
+    # Resize frame to reduce bandwidth (optional)
+    frame = cv2.resize(frame, (320, 240))
 
-class Server:
-    @staticmethod
-    def run():
-        try:
-            app.run(host="0.0.0.0", port=9000, threaded=True, debug=False)
-        except Exception as e:
-            print(e)
+    # Encode frame as JPEG
+    ret, jpeg = cv2.imencode('.jpg', frame)
+    if not ret:
+        return None
+
+    # Base64 encode the image
+    b64jpeg = base64.b64encode(jpeg.tobytes()).decode('utf-8')
+    return b64jpeg
+
+async def get_sensor_data():
+    lidar_distance = lidar.read()[0] if lidar.read() else None
+    return {
+        "lidar_distance": lidar_distance         # Example value
+    }
+
+async def send_frames(websocket):
+    print(f"Client connected: {websocket.remote_address}")
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                continue
+
+            cam_data = await get_camera()
+            if cam_data is None:
+                continue
+
+            sensor_data = await get_sensor_data()
+            if sensor_data is None:
+                continue
+
+            data = {
+                "camera": cam_data,
+                "sensors": sensor_data
+            }
+
+            await websocket.send(json.dumps(data))
+
+            await asyncio.sleep(0.03)  # ~30 FPS
+    except websockets.exceptions.ConnectionClosed:
+        print(f"Client disconnected: {websocket.remote_address}")
+
+async def main():
+    async with websockets.serve(send_frames, "0.0.0.0", 8765):
+        print("WebSocket server started on ws://0.0.0.0:8765")
+        await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
-    Server.run()
+    try:
+        asyncio.run(main())
+    finally:
+        cap.release()

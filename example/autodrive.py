@@ -12,7 +12,7 @@ def main():
     sin = SensorInputs()
     while True:
         sin.ultrasonic_distance = px.get_distance()
-        sin.lidar_distance = lidar.read()[0]
+        sin.lidar_distance = lidar.read()[0] if lidar.read() else sin.lidar_distance
 
         cmd = ap.run(sin)
         speed, angle, pan, tilt= cmd.speed, cmd.angle, cmd.pan, cmd.tilt
@@ -24,7 +24,7 @@ def main():
 
         px.set_cam_pan_angle(pan)
         px.set_cam_tilt_angle(tilt)
-        print(f"Speed: {speed}, Angle: {angle}, Distance: {sin.ultrasonic_distance}, State: {ap.state}")
+        # print(f"Speed: {speed}, Angle: {angle}, Distance: {sin.ultrasonic_distance}, State: {ap.state}")
 
 if __name__ == "__main__":
     try:

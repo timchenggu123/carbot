@@ -29,9 +29,9 @@ class Autopilot:
     allowing for different vehicles to inherit and implement the methods.
     """
     D_THREASHOLD_CRITICAL = 15 # Critical distance threshold for obstacle avoidance
-    D_THRESHOLD_BASE = 30 # Distance threshold for obstacle avoidance
+    D_THRESHOLD_BASE = 35 # Distance threshold for obstacle avoidance
     D_THRESHOLD_INC = 20 # Distance threshold for backing
-    FREQ = 0.5 # Frequency autopilot should run at
+    FREQ = 0.05 # Frequency autopilot should run at
 
     # States for the autopilot
     STATE_READY = -1
@@ -53,6 +53,7 @@ class Autopilot:
         self.base_speed = 50
         self.time_started = 0
         self.target_angle = 0
+        self.scan = self.pan_tilt_scan
 
     def run(self, sensor_inputs: SensorInputs = None):
         time.sleep(self.FREQ)  # Simulate the frequency of the autopilot
@@ -62,16 +63,18 @@ class Autopilot:
         if self.state == self.STATE_READY:
             return self.cruise()
         elif self.state == self.STATE_CRUISING:
+            self.d_threshold = self.D_THRESHOLD_BASE
+            self.scan = self.pan_tilt_scan
             if self.check_obstacle():
                 return self.scan()
             return self.cruise()
         elif self.state == self.STATE_SCANNING:
-            self.d_threshold = self.D_THRESHOLD_BASE
             if self.step >= self.num_steps:
                 self.step = 0
                 if self.max_dist < self.d_threshold:
-                    self.log("Obstacle too close, backing up")
+                    self.log(f"Obstacle too close, backing up, d_threshold: {self.d_threshold}, max_dist: {self.max_dist}")
                     self.increase_scan_threshold()
+                    self.scan = self.full_rotate_scan
                     return self.back()
                 else:
                     print("!!!!!!!!!!", self.target_angle)
@@ -109,22 +112,37 @@ class Autopilot:
         """
         Check for critical obstacles using sensor inputs.
         Returns True if a critical obstacle is detected, False otherwise.
-        """
+    """
         if self.sensor_inputs is None:
             raise ValueError("Sensor inputs must be provided")
         return self.sensor_inputs.lidar_distance < self.D_THREASHOLD_CRITICAL
-
-    def scan(self):
-        """
-        Perform a scan to detect potential path around obstacles.
-        This method simulates scanning by increasing the progress.
-        """
-        # if self.check_obstacle_critical():
-        #     self.log("Critical obstacle detected, backing up")
-        #     return self.back()
-        return self.rotate_scan()
     
-    def rotate_scan(self):
+    def quick_rotate_scan(self):
+        """
+        Perform a quick rotate scan from -30 to 30 degrees.
+        """
+        self.state = self.STATE_SCANNING
+        #Initialize scan if not already started
+        if self.step == 0:
+            #randomly choose -1 and 1 to start turning left or right
+            self.max_dist = -1
+            self.num_steps = 3 * 60 / 360 // self.FREQ # scanning for 60 degrees
+            
+        # record larges distance
+        if self.sensor_inputs.lidar_distance > self.max_dist:
+            self.max_dist = self.sensor_inputs.lidar_distance
+            self.target_angle = self.step * 360 / self.num_steps
+
+        if self.max_dist > 100:
+            self.step = self.num_steps
+            return Command(0, 0, 0, 0)
+        
+        # Turn left and increase progress
+        self.step += 1
+        return Command(0, 30, 0, 0)
+    
+
+    def full_rotate_scan(self):
         """
         Perfrom a scan to detect potential path around obstacles.
         This method simulates scanning by increasing the progress.
@@ -157,10 +175,15 @@ class Autopilot:
         Scanning starts by turing left, then all the way to the right, and then back to center. 
         """
         self.state = self.STATE_SCANNING
-        # record largest distance
+        # Initialize scan if not already started
+        if self.step == 0:
+            self.max_dist = -1
+            self.num_steps = 60
+            
+        # Record largest distance
         if self.sensor_inputs.lidar_distance > self.max_dist:
             self.max_dist = self.sensor_inputs.lidar_distance
-            self.max_progress = self.step
+            self.target_angle = self.step - 30
 
         #Early exit if max distance is too high
         if self.max_dist > 100:
@@ -168,7 +191,8 @@ class Autopilot:
             return Command(0, 0, 0, 0)
 
         pan = -30 + (self.step * 60 / self.num_steps)
-        tilt = -15
+        tilt = -10
+        self.step += 1
         return Command(0, 0, pan, tilt)
 
     def increase_scan_threshold(self):
@@ -205,7 +229,7 @@ class Autopilot:
             self.log("Critical obstacle detected, backing up")
             return self.back()
         self.state = self.STATE_CRUISING
-        return Command(self.base_speed, 0, 0, 0)
+        return Command(self.base_speed, -1, 0, -5)
     
     def log(self, message):
         """
