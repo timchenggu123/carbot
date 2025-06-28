@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'downstream_server'
+package_name = 'downstream'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            "downstream_server = downstream_server.data_subscriber:main",
+            "downstream = downstream.start:main",
         ],
     },
 )

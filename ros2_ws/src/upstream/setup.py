@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'upstream_relay_client'
+package_name = 'upstream'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'upstream_relay_client = upstream_relay_client.upstream_subscriber:main',
+            'start = upstream.start:main',
         ],
     },
 )

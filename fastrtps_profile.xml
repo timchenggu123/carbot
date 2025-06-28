@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <profiles>
+        <participant profile_name="default_participant" is_default_profile="true">
+            <rtps>
+                <builtin>
+                    <discovery_config>
+                        <discoveryProtocol>SIMPLE</discoveryProtocol>
+                        <use_SIMPLE_EndpointDiscoveryProtocol>true</use_SIMPLE_EndpointDiscoveryProtocol>
+                        <use_SIMPLE_ParticipantDiscoveryProtocol>true</use_SIMPLE_ParticipantDiscoveryProtocol>
+                        <simple_EDP>
+                            <use_PublicationReaderANDSubscriptionWriter>true</use_PublicationReaderANDSubscriptionWriter>
+                            <use_PublicationWriterANDSubscriptionReader>true</use_PublicationWriterANDSubscriptionReader>
+                        </simple_EDP>
+                        <initialPeersList>
+                            <locator>
+                                <udpv4>
+                                    <address>10.0.0.3</address>
+                                    <port>7400</port>
+                                </udpv4>
+                            </locator>
+                            <locator>
+                                <udpv4>
+                                    <address>WINDOWS_IP_HERE</address>
+                                    <port>7400</port>
+                                </udpv4>
+                            </locator>
+                        </initialPeersList>
+                    </discovery_config>
+                </builtin>
+            </rtps>
+        </participant>
+    </profiles>
+</dds>
