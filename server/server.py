@@ -1,9 +1,11 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../"))
 import asyncio
 import websockets
 import cv2
 import base64
 import json
-from autobot.sensors import ultrasonic, lidar
+from sensors import lidar
 
 # Open default camera
 cap = cv2.VideoCapture(0)

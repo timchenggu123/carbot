@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'my_python_pkg'
+package_name = 'upstream_relay_client'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'ws_camera_subscriber = camera_ws_client.ws_camera_subscriber:main',
+            'upstream_relay_client = upstream_relay_client.upstream_subscriber:main',
         ],
     },
 )

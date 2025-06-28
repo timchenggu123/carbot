@@ -22,6 +22,10 @@ RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
     echo "source /ros2_ws/install/setup.bash" >> ~/.bashrc
 
+# Set the ROS_DOMAIN_ID and RMW_IMPLEMENTATION environment variables
+ENV ROS_DOMAIN_ID=42
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
 # Default to interactive shell
 CMD ["bash"]
 

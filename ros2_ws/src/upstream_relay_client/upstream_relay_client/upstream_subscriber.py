@@ -12,11 +12,12 @@ import base64
 import cv2
 import numpy as np
 import threading
+import json
 
 class UpstreamClient(Node):
     def __init__(self):
         super().__init__('camera_ws_client')
-        self.publisher_ = self.create_publisher(Image, 'camera/image_raw', 10)
+        self.publisher_ = self.create_publisher(Image, '/camera/image_raw', 10)
         self.bridge = CvBridge()
 
         # WebSocket URL of host streamer (adjust IP as needed)
@@ -35,7 +36,9 @@ class UpstreamClient(Node):
             while rclpy.ok():
                 try:
                     msg = await websocket.recv()
-                    camera_data = msg["camera"]
+                    # Parse JSON data
+                    data = json.loads(msg)
+                    camera_data = data["camera"]
                     jpeg_bytes = base64.b64decode(camera_data)
                     np_arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
                     cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
