@@ -15,7 +15,6 @@ services:
       - /sys:/sys
       - /dev:/dev
       - /run/udev:/run/udev
-      - ./fastrtps_profile.xml:/tmp/fastrtps_profile.xml
     stdin_open: true
     tty: true
     network_mode: host
@@ -23,6 +22,5 @@ services:
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - ROS_DOMAIN_ID=42
       - HOST_IP=10.0.0.3
-      - FASTRTPS_DEFAULT_PROFILES_FILE=/tmp/fastrtps_profile.xml
       - ROS_DISCOVERY_SERVER=10.0.0.3:11811
     command: bash

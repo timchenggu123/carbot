@@ -6,22 +6,15 @@
                 <builtin>
                     <discovery_config>
                         <discoveryProtocol>SIMPLE</discoveryProtocol>
-                        <use_SIMPLE_EndpointDiscoveryProtocol>true</use_SIMPLE_EndpointDiscoveryProtocol>
-                        <use_SIMPLE_ParticipantDiscoveryProtocol>true</use_SIMPLE_ParticipantDiscoveryProtocol>
-                        <simple_EDP>
-                            <use_PublicationReaderANDSubscriptionWriter>true</use_PublicationReaderANDSubscriptionWriter>
-                            <use_PublicationWriterANDSubscriptionReader>true</use_PublicationWriterANDSubscriptionReader>
-                        </simple_EDP>
+                        <EDP>SIMPLE</EDP>
+                        <simpleEDP>
+                            <PUBWRITER_SUBREADER>true</PUBWRITER_SUBREADER>
+                            <PUBREADER_SUBWRITER>true</PUBREADER_SUBWRITER>
+                        </simpleEDP>
                         <initialPeersList>
                             <locator>
                                 <udpv4>
                                     <address>10.0.0.3</address>
-                                    <port>7400</port>
-                                </udpv4>
-                            </locator>
-                            <locator>
-                                <udpv4>
-                                    <address>WINDOWS_IP_HERE</address>
                                     <port>7400</port>
                                 </udpv4>
                             </locator>
