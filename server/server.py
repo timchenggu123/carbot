@@ -6,26 +6,24 @@ import cv2
 import base64
 import json
 from sensors import lidar
+from sensors.camera import get_camera_instance, close_camera
 
-# Open default camera
-cap = cv2.VideoCapture(0)
+# Initialize camera
+try:
+    camera = get_camera_instance()
+    print("Camera module loaded successfully")
+except Exception as e:
+    print(f"Failed to initialize camera: {e}")
+    exit(1)
 
 async def get_camera():
-    ret, frame = cap.read()
-    if not ret:
-        return None
-
-    # Resize frame to reduce bandwidth (optional)
-    frame = cv2.resize(frame, (320, 240))
-
-    # Encode frame as JPEG
-    ret, jpeg = cv2.imencode('.jpg', frame)
-    if not ret:
-        return None
-
-    # Base64 encode the image
-    b64jpeg = base64.b64encode(jpeg.tobytes()).decode('utf-8')
-    return b64jpeg
+    """
+    Get camera data as base64 encoded JPEG
+    
+    Returns:
+        str: Base64 encoded JPEG or None if capture fails
+    """
+    return camera.capture_frame_base64(resize_to=(320, 240), show_preview=True)
 
 async def get_sensor_data():
     lidar_distance = lidar.read()[0] if lidar.read() else None
@@ -35,18 +33,21 @@ async def get_sensor_data():
 
 async def send_frames(websocket):
     print(f"Client connected: {websocket.remote_address}")
+    i = 0
     try:
         while True:
-            ret, frame = cap.read()
-            if not ret:
-                continue
-
+            i += 1
+            
             cam_data = await get_camera()
+            
+            print(f"Frame {i}: Processing...")
             if cam_data is None:
+                print("Failed to capture camera frame")
                 continue
 
             sensor_data = await get_sensor_data()
             if sensor_data is None:
+                print("Failed to get sensor data")
                 continue
 
             data = {
@@ -55,18 +56,23 @@ async def send_frames(websocket):
             }
 
             await websocket.send(json.dumps(data))
+            print(f"Frame {i}: Sent successfully")
 
             await asyncio.sleep(0.03)  # ~30 FPS
     except websockets.exceptions.ConnectionClosed:
         print(f"Client disconnected: {websocket.remote_address}")
+    except Exception as e:
+        print(f"Error in send_frames: {e}")
 
 async def main():
     async with websockets.serve(send_frames, "0.0.0.0", 8765):
         print("WebSocket server started on ws://0.0.0.0:8765")
+        print("Waiting for clients to connect...")
         await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     finally:
-        cap.release()
+        close_camera()
+        cv2.destroyAllWindows()
