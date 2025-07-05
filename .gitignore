@@ -2,3 +2,8 @@ env/
 *.pyc
 __pycache__/
 driver/__pycache__/*
+vision/fly/data/*
+vision/fly/runs/*
+*.pt
+*.egg_info
+*.egg

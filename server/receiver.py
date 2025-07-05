@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 import websockets
 import cv2
@@ -8,6 +9,7 @@ import json
 import numpy as np
 import time
 from datetime import datetime
+from vision.fly.detect import get_detection_centers
 
 class FrameReceiver:
     def __init__(self, server_host="localhost", server_port=8765):
@@ -28,6 +30,10 @@ class FrameReceiver:
         self.start_time = None
         self.last_fps_time = None
         self.fps = 0.0
+        
+        # Frame processing optimization
+        self.process_every_n_frames = 3  # Only run detection every 3rd frame
+        self.last_detections = []  # Cache last detection results
         
         print(f"Frame Receiver initialized for {self.ws_url}")
     
@@ -76,7 +82,7 @@ class FrameReceiver:
     
     def display_frame_with_info(self, frame, sensor_data):
         """
-        Display frame with overlay information
+        Display frame with overlay information (optimized)
         
         Args:
             frame (numpy.ndarray): BGR image frame
@@ -126,12 +132,19 @@ class FrameReceiver:
         status_text = f"Connected to: {self.server_host}:{self.server_port}"
         cv2.putText(display_frame, status_text, (10, height - 10), font, font_scale, (255, 255, 255), thickness)
         
-        # Display the frame
+        # Only run detection every N frames to reduce processing time
+        if self.frame_count % self.process_every_n_frames == 0:
+            self.last_detections = get_detection_centers(display_frame)
+        
+        # Draw cached detections
+        for center_x, center_y, confidence in self.last_detections:
+            cv2.circle(display_frame, (center_x, center_y), 5, (0, 0, 255), -1)
+            cv2.putText(display_frame, f"{confidence:.2f}", (center_x + 10, center_y), font, font_scale, (0, 0, 255), thickness)
         cv2.imshow("Camera Feed - Receiver", display_frame)
     
     async def receive_frames(self):
         """
-        Main loop to receive and display frames
+        Main loop to receive and display frames with frame dropping
         """
         print(f"Connecting to {self.ws_url}...")
         
@@ -142,11 +155,32 @@ class FrameReceiver:
                 
                 while self.running:
                     try:
-                        # Receive message from server
-                        message = await websocket.recv()
+                        # Clear the receive queue by getting all available messages
+                        # and only processing the most recent one
+                        latest_message = None
+                        dropped_frames = 0
+                        
+                        # Non-blocking receive to clear queue
+                        try:
+                            while True:
+                                message = await asyncio.wait_for(websocket.recv(), timeout=0.001)
+                                if latest_message is not None:
+                                    dropped_frames += 1
+                                latest_message = message
+                        except asyncio.TimeoutError:
+                            # No more messages available
+                            pass
+                        
+                        # If no new message, wait for one
+                        if latest_message is None:
+                            latest_message = await websocket.recv()
+                        
+                        # Show dropped frame count if any
+                        if dropped_frames > 0:
+                            print(f"Dropped {dropped_frames} frames")
                         
                         # Parse JSON data
-                        data = json.loads(message)
+                        data = json.loads(latest_message)
                         
                         # Extract camera and sensor data
                         camera_data = data.get("camera")
