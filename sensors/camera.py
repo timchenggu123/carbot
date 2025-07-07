@@ -143,7 +143,7 @@ def capture_frame():
     camera = get_camera_instance()
     return camera.capture_frame()
 
-def capture_frame_base64(resize_to=(320, 240), show_preview=False):
+def capture_frame_base64(resize_to=(320, 240)):
     """
     Capture a frame and return it as base64 encoded JPEG using global camera instance
     
@@ -155,7 +155,7 @@ def capture_frame_base64(resize_to=(320, 240), show_preview=False):
         str: Base64 encoded JPEG image or None if capture fails
     """
     camera = get_camera_instance()
-    return camera.capture_frame_base64(resize_to=resize_to, show_preview=show_preview)
+    return camera.capture_frame_base64(resize_to=resize_to)
 
 def close_camera():
     """
