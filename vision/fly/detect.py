@@ -13,11 +13,11 @@ def get_detection_centers(image, model_path=None):
     
     # Load your trained model
     if model_path is None:
-        model_path = os.path.join(base_path, "runs/detect/yolov8n_fly2/weights/best.pt")
+        model_path = os.path.join(base_path, "runs/detect/yolov8n_fly4/weights/best.pt")
     model = YOLO(model_path)
     
     # Run prediction
-    results = model(image, conf=0.15, iou=0.5, max_det=100, save=False)
+    results = model(image, conf=0.6, iou=0.8, max_det=100, save=False)
     
     # Extract center coordinates and confidence scores
     detections = []
@@ -35,7 +35,7 @@ def get_detection_centers(image, model_path=None):
                 # Get confidence score
                 confidence = float(box.conf[0].cpu().numpy())
                 
-                detections.append((center_x, center_y, confidence))
+                detections.append((center_x, center_y, confidence, x1, y1, x2, y2))
     
     # Sort by confidence (highest first)
     detections.sort(key=lambda x: x[2], reverse=True)

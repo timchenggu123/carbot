@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 
 # Load a base model (YOLOv8n is lightweight)
-model = YOLO("runs/detect/yolov8n_fly/weights/epoch25.pt")
+model = YOLO("runs/detect/yolov8n_fly3/weights/best.pt")
 
 def main():
 # Train it

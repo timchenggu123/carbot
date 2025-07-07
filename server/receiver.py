@@ -136,10 +136,17 @@ class FrameReceiver:
         if self.frame_count % self.process_every_n_frames == 0:
             self.last_detections = get_detection_centers(display_frame)
         
-        # Draw cached detections
-        for center_x, center_y, confidence in self.last_detections:
-            cv2.circle(display_frame, (center_x, center_y), 5, (0, 0, 255), -1)
-            cv2.putText(display_frame, f"{confidence:.2f}", (center_x + 10, center_y), font, font_scale, (0, 0, 255), thickness)
+        # # Draw cached detections
+        # for center_x, center_y, confidence, _, _, _, _ in self.last_detections:
+        #     cv2.circle(display_frame, (center_x, center_y), 5, (0, 0, 255), -1)
+        #     cv2.putText(display_frame, f"{confidence:.2f}", (center_x + 10, center_y), font, font_scale, (0, 0, 255), thickness)
+        # cv2.imshow("Camera Feed - Receiver", display_frame)
+
+        # Draw cached detection boxes
+        for center_x, center_y, confidence, x1, y1, x2, y2 in self.last_detections:
+            cv2.rectangle(display_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+            cv2.circle(display_frame, (int(center_x), int(center_y)), 5, (0, 0, 255), -1)
+            cv2.putText(display_frame, f"{confidence:.2f}", (int(center_x) + 10, int(center_y)), font, font_scale, (0, 0, 255), thickness)
         cv2.imshow("Camera Feed - Receiver", display_frame)
     
     async def receive_frames(self):
