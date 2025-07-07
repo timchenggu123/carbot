@@ -20,6 +20,7 @@ class SensorInputs:
     """
     ultrasonic_distance: float = float('inf')
     lidar_distance: float = float('inf')
+    camera_image: bytes = b''  # Placeholder for camera image data
 
 class Autopilot:
     """
@@ -29,7 +30,7 @@ class Autopilot:
     allowing for different vehicles to inherit and implement the methods.
     """
     D_THREASHOLD_CRITICAL = 15 # Critical distance threshold for obstacle avoidance
-    D_THRESHOLD_BASE = 35 # Distance threshold for obstacle avoidance
+    D_THRESHOLD_BASE =35 # Distance threshold for obstacle avoidance
     D_THRESHOLD_INC = 20 # Distance threshold for backing
     FREQ = 0.05 # Frequency autopilot should run at
 
@@ -54,12 +55,47 @@ class Autopilot:
         self.time_started = 0
         self.target_angle = 0
         self.scan = self.pan_tilt_scan
+        self.register_states() 
+    
+    def register_states(self):
+        """
+        Register a new state for the autopilot.
+        This can be used to extend the autopilot with additional states.
+        """
+        val = 0
+        for attr in dir(self):
+            if attr.startswith('STATE_'):
+                setattr(self, attr, val)
+                val += 1
+    
+    def change_state(self, new_state, init_fun=None, *init_args):
+        '''
+        Call this function when you want to change the state of the autopilot.
+        '''
+        self.state = new_state
+        self.step = 0  # Reset step when changing state
+        self.log(f"State changed to {self.state}")
+        if init_fun is not None:
+            self.log(f"Running initialization function for state {self.state}")
+            init_fun(self, *init_args)
+
+    def sleep(self):
+        time.sleep(self.FREQ)  # Sleep for the frequency duration
 
     def run(self, sensor_inputs: SensorInputs = None):
-        time.sleep(self.FREQ)  # Simulate the frequency of the autopilot
+        """
+        Run the autopilot logic based on the current state and sensor inputs.
+        This method should be overridden by the vehicle implementation to provide specific behavior.
+        """
+        self.sleep()
+        return self.run_step(sensor_inputs)
+
+    def run_step(self, sensor_inputs: SensorInputs = None):
+        #This can be overridden by the vehicle implementation to run the autopilot
         if sensor_inputs is None:
             raise ValueError("Sensor inputs must be provided")
         self.sensor_inputs = sensor_inputs
+
         if self.state == self.STATE_READY:
             return self.cruise()
         elif self.state == self.STATE_CRUISING:
@@ -85,7 +121,7 @@ class Autopilot:
             if self.step >= self.num_steps:
                 self.step = 0
                 return self.cruise()
-            return self.turn_step()
+            return self.turn()
         elif self.state == self.STATE_BACKING:
             if not self.check_obstacle():
                 self.step = 0
@@ -121,7 +157,8 @@ class Autopilot:
         """
         Perform a quick rotate scan from -30 to 30 degrees.
         """
-        self.state = self.STATE_SCANNING
+        if self.state != self.STATE_SCANNING:
+            self.change_state(self.STATE_SCANNING)
         #Initialize scan if not already started
         if self.step == 0:
             #randomly choose -1 and 1 to start turning left or right
@@ -148,7 +185,8 @@ class Autopilot:
         This method simulates scanning by increasing the progress.
         Scanning starts by turing left, then all the way to the right, and then back to center. 
         """
-        self.state = self.STATE_SCANNING
+        if self.state != self.STATE_SCANNING:
+            self.change_state(self.STATE_SCANNING)
         #Initialize scan if not already started
         if self.step == 0:
             #randomly choose -1 and 1 to start turning left or right
@@ -174,7 +212,9 @@ class Autopilot:
         This method simulates scanning by increasing the progress.
         Scanning starts by turing left, then all the way to the right, and then back to center. 
         """
-        self.state = self.STATE_SCANNING
+        if self.state != self.STATE_SCANNING:
+            self.change_state(self.STATE_SCANNING)
+
         # Initialize scan if not already started
         if self.step == 0:
             self.max_dist = -1
@@ -199,36 +239,41 @@ class Autopilot:
         self.d_threshold += self.D_THRESHOLD_INC
         return
     
-    def turn(self, angle=30):
-        #Picarx takes about 3 seconds to turn 360 degrees at 100% power
-        self.state = self.STATE_TURNING
+    def init_turn(self, angle):
+        '''
+        Initialize the turn state.
+        '''
         self.dir = 1 if angle > 0 else -1
         angle = abs(angle)
         self.num_steps = int(3 / self.FREQ * angle / 360)  # Number of steps to complete the turn
         print("!!!!!!!!!! Set num steps to", self.num_steps, "for angle", angle)
-        self.step = 0
-        return self.turn_step()
-        
-    def turn_step(self):
+
+    def turn(self, angle=30):
         #Picarx takes about 3 seconds to turn 360 degrees at 100% power
-        print("!!!!!!!!!!!!!!!!! Turning step:", self.step, "of", self.num_steps)
+        if self.state != self.STATE_TURNING:
+            self.change_state(self.STATE_TURNING, self.init_turn, angle)
         self.step +=1
         return Command(0, 30 * self.dir, 0, 0)
-
+        
     def stop(self):
-        self.state = self.STATE_STOPPED
+        if self.state != self.STATE_STOPPED:
+            self.change_state(self.STATE_STOPPED)
         return Command(0, 0, 0, 0)
     
     def back(self):
-        self.state = self.STATE_BACKING
+        if self.state != self.STATE_BACKING:
+            self.change_state(self.STATE_BACKING)
         self.step += 1
         return Command(-self.base_speed, 0, 0, 0)
     
     def cruise(self):
+        if self.state != self.STATE_CRUISING:
+            self.change_state(self.STATE_CRUISING)
+
         if self.check_obstacle_critical():
             self.log("Critical obstacle detected, backing up")
             return self.back()
-        self.state = self.STATE_CRUISING
+
         return Command(self.base_speed, -1, 0, -5)
     
     def log(self, message):
