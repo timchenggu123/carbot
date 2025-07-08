@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -9,6 +10,8 @@ import json
 import numpy as np
 import time
 from datetime import datetime
+from sensors.camera import decode_frame
+from comm.client import Client 
 from vision.fly.detect import get_detection_centers
 
 class FrameReceiver:
@@ -24,6 +27,7 @@ class FrameReceiver:
         self.server_port = server_port
         self.ws_url = f"ws://{server_host}:{server_port}"
         self.running = False
+        self.client =  Client(server_host, server_port)
         
         # Stats tracking
         self.frame_count = 0
@@ -36,31 +40,6 @@ class FrameReceiver:
         self.last_detections = []  # Cache last detection results
         
         print(f"Frame Receiver initialized for {self.ws_url}")
-    
-    def decode_frame(self, base64_data):
-        """
-        Decode base64 encoded JPEG frame
-        
-        Args:
-            base64_data (str): Base64 encoded JPEG image
-            
-        Returns:
-            numpy.ndarray: Decoded BGR image or None if decode fails
-        """
-        try:
-            # Decode base64 to bytes
-            jpeg_bytes = base64.b64decode(base64_data)
-            
-            # Convert bytes to numpy array
-            np_arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
-            
-            # Decode JPEG to OpenCV image
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            
-            return frame
-        except Exception as e:
-            print(f"Error decoding frame: {e}")
-            return None
     
     def calculate_fps(self):
         """Calculate and update FPS"""
@@ -149,68 +128,68 @@ class FrameReceiver:
         print(f"Connecting to {self.ws_url}...")
         
         try:
-            async with websockets.connect(self.ws_url) as websocket:
-                print("Connected! Receiving frames...")
-                self.running = True
-                
-                while self.running:
+            self.client.connect()
+            print("Connected! Receiving frames...")
+            self.running = True
+            
+            while self.running:
+                try:
+                    # Clear the receive queue by getting all available messages
+                    # and only processing the most recent one
+                    latest_message = None
+                    dropped_frames = 0
+                    
+                    # Non-blocking receive to clear queue
                     try:
-                        # Clear the receive queue by getting all available messages
-                        # and only processing the most recent one
-                        latest_message = None
-                        dropped_frames = 0
-                        
-                        # Non-blocking receive to clear queue
-                        try:
-                            while True:
-                                message = await asyncio.wait_for(websocket.recv(), timeout=0.001)
-                                if latest_message is not None:
-                                    dropped_frames += 1
-                                latest_message = message
-                        except asyncio.TimeoutError:
-                            # No more messages available
-                            pass
-                        
-                        # If no new message, wait for one
-                        if latest_message is None:
-                            latest_message = await websocket.recv()
-                        
-                        # Show dropped frame count if any
-                        if dropped_frames > 0:
-                            print(f"Dropped {dropped_frames} frames")
-                        
-                        # Parse JSON data
-                        data = json.loads(latest_message)
-                        
-                        # Extract camera and sensor data
-                        camera_data = data.get("camera")
-                        sensor_data = data.get("sensors", {})
-                        
-                        if camera_data:
-                            # Decode and display frame
-                            frame = self.decode_frame(camera_data)
-                            if frame is not None:
-                                self.display_frame_with_info(frame, sensor_data)
-                                
-                                # Check for 'q' key press to quit
-                                key = cv2.waitKey(1) & 0xFF
-                                if key == ord('q'):
-                                    print("Quit key pressed. Stopping...")
-                                    self.running = False
-                                    break
-                            else:
-                                print("Failed to decode frame")
-                        else:
-                            print("No camera data in message")
+                        while True:
+                            message = await self.client.receive_data()
+                            if latest_message is not None:
+                                dropped_frames += 1
+                            latest_message = message
+                    except asyncio.TimeoutError:
+                        # No more messages available
+                        pass
+                    
+                    # If no new message, wait for one
+                    if latest_message is None:
+                        latest_message = await self.client.await_data() 
+                    
+                    # Show dropped frame count if any
+                    if dropped_frames > 0:
+                        print(f"Dropped {dropped_frames} frames")
+                    
+                    # Parse JSON data
+                    data = json.loads(latest_message)
+                    
+                    # Extract camera and sensor data
+                    camera_data = data.get("camera")
+                    sensor_data = data.get("sensors", {})
+                    
+                    if camera_data:
+                        # Decode and display frame
+                        frame = decode_frame(camera_data)
+                        if frame is not None:
+                            self.display_frame_with_info(frame, sensor_data)
                             
-                    except websockets.exceptions.ConnectionClosed:
-                        print("Connection closed by server")
-                        break
-                    except json.JSONDecodeError as e:
-                        print(f"Error parsing JSON: {e}")
-                    except Exception as e:
-                        print(f"Error processing frame: {e}")
+                            # Check for 'q' key press to quit
+                            key = cv2.waitKey(1) & 0xFF
+                            if key == ord('q'):
+                                print("Quit key pressed. Stopping...")
+                                self.running = False
+                                break
+                        else:
+                            print("Failed to decode frame")
+                    else:
+                        print("No camera data in message")
                         
+                except websockets.exceptions.ConnectionClosed:
+                    print("Connection closed by server")
+                    break
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing JSON: {e}")
+                except Exception as e:
+                    print(f"Error processing frame: {e}")
+                    
         except websockets.exceptions.ConnectionRefused:
             print(f"Could not connect to {self.ws_url}")
             print("Make sure the server is running!")
