@@ -3,7 +3,6 @@
 import cv2
 import base64
 import numpy as np
-from picamera2 import Picamera2
 
 class Camera:
     def __init__(self, size=(320, 240)):
@@ -13,6 +12,7 @@ class Camera:
         Args:
             size (tuple): Camera resolution (width, height)
         """
+        from picamera2 import Picamera2
         self.picam2 = Picamera2()
         self.size = size
         self.is_initialized = False
@@ -156,6 +156,31 @@ def capture_frame_base64(resize_to=(320, 240)):
     """
     camera = get_camera_instance()
     return camera.capture_frame_base64(resize_to=resize_to)
+
+def decode_frame(base64_data):
+    """
+    Decode base64 encoded JPEG frame
+    
+    Args:
+        base64_data (str): Base64 encoded JPEG image
+        
+    Returns:
+        numpy.ndarray: Decoded BGR image or None if decode fails
+    """
+    try:
+        # Decode base64 to bytes
+        jpeg_bytes = base64.b64decode(base64_data)
+        
+        # Convert bytes to numpy array
+        np_arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+        
+        # Decode JPEG to OpenCV image
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        
+        return frame
+    except Exception as e:
+        print(f"Error decoding frame: {e}")
+        return None
 
 def close_camera():
     """
