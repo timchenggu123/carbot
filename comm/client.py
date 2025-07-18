@@ -3,14 +3,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 import websockets
-import cv2
-import base64
-import json
-import numpy as np
 import time
-from datetime import datetime
-from sensors.camera import decode_frame
-from vision.fly.detect import get_detection_centers
 
 class Client:
     def __init__(self, server_host="localhost", server_port=8765):
@@ -71,6 +64,25 @@ class Client:
         except Exception as e:
             print(f"Error receiving data: {e}")
             return None
+    
+    async def send_data(self, data):
+        """
+        Send data to the WebSocket server
+        
+        Args:
+            data (str): Data to send
+        """
+        if self.ws is None or not self.running:
+            print("WebSocket connection is not established")
+            return
+        
+        try:
+            await self.ws.send(data)
+        except websockets.exceptions.ConnectionClosed:
+            print("Connection closed by server")
+            self.running = False
+        except Exception as e:
+            print(f"Error sending data: {e}")
                 
     def stop(self):
         """Stop the receiver"""

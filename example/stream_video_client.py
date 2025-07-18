@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from sensors.camera import decode_frame
 from comm.client import Client 
-from vision.fly.detect import get_detection_centers
+from vision.fly.detect import FlyYOLO
 
 class FrameReceiver:
     def __init__(self, server_host="localhost", server_port=8765):
@@ -36,9 +36,12 @@ class FrameReceiver:
         self.fps = 0.0
         
         # Frame processing optimization
+        self.detector = FlyYOLO()  # Initialize the YOLO detector
         self.process_every_n_frames = 3  # Only run detection every 3rd frame
         self.last_detections = []  # Cache last detection results
         
+        # Other settings
+        self.show_info = True  # Toggle to show overlay info
         print(f"Frame Receiver initialized for {self.ws_url}")
     
     def calculate_fps(self):
@@ -113,20 +116,25 @@ class FrameReceiver:
         
         # Only run detection every N frames to reduce processing time
         if self.frame_count % self.process_every_n_frames == 0:
-            self.last_detections = get_detection_centers(display_frame)
+            self.last_detections = self.detector.get_detection_centers(display_frame)
         
-        # # Draw cached detections
-        # for center_x, center_y, confidence, _, _, _, _ in self.last_detections:
-        #     cv2.circle(display_frame, (center_x, center_y), 5, (0, 0, 255), -1)
-        #     cv2.putText(display_frame, f"{confidence:.2f}", (center_x + 10, center_y), font, font_scale, (0, 0, 255), thickness)
-        # cv2.imshow("Camera Feed - Receiver", display_frame)
-
         # Draw cached detection boxes
         for center_x, center_y, confidence, x1, y1, x2, y2 in self.last_detections:
             cv2.rectangle(display_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
             cv2.circle(display_frame, (int(center_x), int(center_y)), 5, (0, 0, 255), -1)
             cv2.putText(display_frame, f"{confidence:.2f}", (int(center_x) + 10, int(center_y)), font, font_scale, (0, 0, 255), thickness)
         cv2.imshow("Camera Feed - Receiver", display_frame)
+    
+    def detect_frame(self, frame):
+        """
+        Detect objects in the frame using YOLO
+        
+        Args:
+            frame (numpy.ndarray): BGR image frame
+        """
+        if self.frame_count % self.process_every_n_frames == 0:
+            return self.detector.get_detection_centers(frame)
+        return []
     
     async def receive_frames(self):
         """
@@ -176,8 +184,16 @@ class FrameReceiver:
                         # Decode and display frame
                         frame = decode_frame(camera_data)
                         if frame is not None:
-                            self.display_frame_with_info(frame, sensor_data)
-                            
+                            if self.show_info: self.display_frame_with_info(frame, sensor_data)
+                            detections = self.detect_frame(frame)
+
+                            #If detections are available, send them to the server
+                            if detections:
+                                await self.client.send_data({
+                                    "detections": detections,
+                                    "frame_id": data.get("frame_id", -1),
+                                    "timestamp": data.get("timestamp", None)
+                                })
                             # Check for 'q' key press to quit
                             key = cv2.waitKey(1) & 0xFF
                             if key == ord('q'):
