@@ -42,7 +42,7 @@ class Server():
             Data received from client, or None if no data available
         """
         try:
-            return await asyncio.wait_for(self.message_queue.get(), timeout=0.01)
+            return await asyncio.wait_for(self.message_queue.get(), timeout=0.10)
         except asyncio.TimeoutError:
             return None
     
@@ -55,6 +55,7 @@ class Server():
             async for message in websocket:
                 try:
                     data = json.loads(message)
+                    print(f"Received data from {websocket.remote_address}: {data}")
                     await self.message_queue.put(data)
                 except json.JSONDecodeError:
                     pass  # Ignore invalid JSON

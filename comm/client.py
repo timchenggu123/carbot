@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 import websockets
 import time
+import json
 
 class Client:
     def __init__(self, server_host="localhost", server_port=8765):
@@ -77,6 +78,7 @@ class Client:
             return
         
         try:
+            data = json.dumps(data) if isinstance(data, dict) else data
             await self.ws.send(data)
         except websockets.exceptions.ConnectionClosed:
             print("Connection closed by server")
