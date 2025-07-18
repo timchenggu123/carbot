@@ -41,7 +41,7 @@ class FrameReceiver:
         self.last_detections = []  # Cache last detection results
         
         # Other settings
-        self.show_info = True  # Toggle to show overlay info
+        self.show_info = False  # Toggle to show overlay info
         print(f"Frame Receiver initialized for {self.ws_url}")
     
     def calculate_fps(self):
@@ -152,14 +152,11 @@ class FrameReceiver:
                     # Clear the receive queue by getting all available messages
                     # and only processing the most recent one
                     latest_message = None
-                    dropped_frames = 0
                     
                     # Non-blocking receive to clear queue
                     try:
                         while True:
                             message = await self.client.receive_data()
-                            if latest_message is not None:
-                                dropped_frames += 1
                             latest_message = message
                     except asyncio.TimeoutError:
                         # No more messages available
@@ -169,9 +166,6 @@ class FrameReceiver:
                     if latest_message is None:
                         latest_message = await self.client.await_data() 
                     
-                    # Show dropped frame count if any
-                    if dropped_frames > 0:
-                        print(f"Dropped {dropped_frames} frames")
                     
                     # Parse JSON data
                     data = json.loads(latest_message)
