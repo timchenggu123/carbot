@@ -35,34 +35,38 @@ class Server():
             self.clients.discard(client)
     
     async def receive_data(self):
-        """
-        Receive a single piece of data from any client
-        
-        Returns:
-            Data received from client, or None if no data available
-        """
+        """Receive data from clients (non-blocking)"""
         try:
-            return await asyncio.wait_for(self.message_queue.get(), timeout=0.10)
+            data = await asyncio.wait_for(self.message_queue.get(), timeout=0.01)
+            print(f"SERVER: Retrieved data from queue: {data}")
+            return data
         except asyncio.TimeoutError:
             return None
     
     async def _handle_client(self, websocket):
         """Handle a single client connection"""
         self.clients.add(websocket)
-        print(f"Client connected: {websocket.remote_address}")
+        print(f"SERVER: Client connected: {websocket.remote_address}")
+        print(f"SERVER: Total clients: {len(self.clients)}")
         self.is_running = True
+        
         try:
             async for message in websocket:
+                print(f"SERVER: Raw message received from {websocket.remote_address}: {message[:100]}...")
                 try:
                     data = json.loads(message)
-                    print(f"Received data from {websocket.remote_address}: {data}")
+                    print(f"SERVER: Parsed JSON from {websocket.remote_address}: {data}")
                     await self.message_queue.put(data)
-                except json.JSONDecodeError:
-                    pass  # Ignore invalid JSON
-        except:
-            pass  # Connection closed
+                    print(f"SERVER: Data added to queue, queue size: {self.message_queue.qsize()}")
+                except json.JSONDecodeError as e:
+                    print(f"SERVER: JSON decode error: {e}")
+        except Exception as e:
+            print(f"SERVER: Connection exception: {e}")
         finally:
             self.clients.discard(websocket)
+            print(f"SERVER: Client disconnected: {websocket.remote_address}")
+            print(f"SERVER: Remaining clients: {len(self.clients)}")
+    
     
     async def start_server(self, host="0.0.0.0", port=8765):
         """

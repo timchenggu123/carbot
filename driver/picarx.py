@@ -1,6 +1,5 @@
 from robot_hat import Pin, ADC, PWM, Servo, fileDB
 from robot_hat import Grayscale_Module, Ultrasonic, utils
-from vilib import Vilib
 from picamera2 import Picamera2
 import time
 import os
@@ -108,15 +107,6 @@ class Picarx(object):
         self.pan_angle=0
         self.tilt_angle=0
 
-    def start_camera(self, motor, speed):
-        self.cam = Picamera2()
-        try:
-            self.cam.start()
-        except Exception as e:
-            print(f"Failed to initialize camera")
-        
-    def capture_camera(self):
-        self.cam.capture_array()
 
     def set_motor_speed(self, motor, speed):
         ''' set motor speed
