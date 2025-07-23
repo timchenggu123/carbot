@@ -35,13 +35,16 @@ class FrameReceiver:
         self.last_fps_time = None
         self.fps = 0.0
         
-        # Frame processing optimization
+        # Frame processing optimization - async batch processing
         self.detector = FlyYOLO()  # Initialize the YOLO detector
-        self.process_every_n_frames = 3  # Only run detection every 3rd frame
-        self.last_detections = []  # Cache last detection results
+        self.batch_size = 3  # Number of frames to collect before processing
+        self.frame_queue = asyncio.Queue()  # Queue for frames to be processed
+        self.result_queue = asyncio.Queue()  # Queue for detection results
+        self.last_detections = []  # Cache last detection results for display
+        self.processing_task = None  # Background processing task
         
         # Other settings
-        self.show_info = False  # Toggle to show overlay info
+        self.show_info = True  # Toggle to show overlay info
         print(f"Frame Receiver initialized for {self.ws_url}")
     
     def calculate_fps(self):
@@ -114,8 +117,8 @@ class FrameReceiver:
         status_text = f"Connected to: {self.server_host}:{self.server_port}"
         cv2.putText(display_frame, status_text, (10, height - 10), font, font_scale, (255, 255, 255), thickness)
         
-        # Only run detection every N frames to reduce processing time
-        if self.frame_count % self.process_every_n_frames == 0:
+        # Only run detection for display purposes (batch processing handles actual detection)
+        if self.frame_count % self.batch_size == 0 or len(self.last_detections) == 0:
             self.last_detections = self.detector.get_detection_centers(display_frame)
         
         # Draw cached detection boxes
@@ -125,6 +128,124 @@ class FrameReceiver:
             cv2.putText(display_frame, f"{confidence:.2f}", (int(center_x) + 10, int(center_y)), font, font_scale, (0, 0, 255), thickness)
         cv2.imshow("Camera Feed - Receiver", display_frame)
     
+    async def background_batch_processor(self):
+        """
+        Background task that processes frames in batches
+        """
+        frame_batch = []
+        frame_metadata_batch = []
+        
+        print("Background batch processor started...")
+        
+        while self.running:
+            try:
+                # Wait for frames to be added to the queue
+                frame_data = await asyncio.wait_for(self.frame_queue.get(), timeout=1.0)
+                
+                if frame_data is None:  # Shutdown signal
+                    print("Received shutdown signal in batch processor")
+                    break
+                    
+                frame, metadata = frame_data
+                frame_batch.append(frame)
+                frame_metadata_batch.append(metadata)
+                
+                print(f"Added frame to batch. Current batch size: {len(frame_batch)}")
+                
+                # Process batch when it reaches the desired size
+                if len(frame_batch) >= self.batch_size:
+                    print(f"Processing batch of {len(frame_batch)} frames...")
+                    
+                    # Use batch detection method
+                    batch_detections = self.detector.get_detection_centers_batch(frame_batch)
+                    
+                    print(f"Batch detection complete. Results: {len(batch_detections)} frame results")
+                    
+                    # Create results for each frame
+                    for i, detections in enumerate(batch_detections):
+                        metadata = frame_metadata_batch[i]
+                        detection_coords = [[d[0], d[1]] for d in detections]
+                        
+                        result = {
+                            "detections": detection_coords,
+                            "frame_id": metadata.get("frame_id", -1),
+                            "timestamp": metadata.get("timestamp", None),
+                            "full_detections": detections  # Keep full detection info for display
+                        }
+                        
+                        # Put result in the result queue
+                        await self.result_queue.put(result)
+                        print(f"Added result to queue. Detections: {len(detection_coords)}")
+                    
+                    # Clear the batch
+                    frame_batch.clear()
+                    frame_metadata_batch.clear()
+                    
+            except asyncio.TimeoutError:
+                # No frames to process, continue
+                continue
+            except Exception as e:
+                print(f"Error in batch processor: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        print("Background batch processor ending...")
+        
+        # Process any remaining frames
+        if frame_batch:
+            print(f"Processing remaining {len(frame_batch)} frames...")
+            batch_detections = self.detector.get_detection_centers_batch(frame_batch)
+            
+            for i, detections in enumerate(batch_detections):
+                metadata = frame_metadata_batch[i]
+                detection_coords = [[d[0], d[1]] for d in detections]
+                
+                result = {
+                    "detections": detection_coords,
+                    "frame_id": metadata.get("frame_id", -1),
+                    "timestamp": metadata.get("timestamp", None),
+                    "full_detections": detections
+                }
+                
+                await self.result_queue.put(result)
+
+    async def add_frame_to_batch(self, frame, data):
+        """
+        Add frame to processing queue (non-blocking)
+        
+        Args:
+            frame (numpy.ndarray): BGR image frame
+            data (dict): Frame data including frame_id and timestamp
+        """
+        metadata = {
+            "frame_id": data.get("frame_id", -1),
+            "timestamp": data.get("timestamp", None)
+        }
+        
+        # Add frame to processing queue (non-blocking)
+        try:
+            self.frame_queue.put_nowait((frame.copy(), metadata))
+            print(f"Added frame to queue. Queue size: {self.frame_queue.qsize()}")
+        except asyncio.QueueFull:
+            print("Frame queue is full, dropping frame")
+
+    async def get_detection_result(self):
+        """
+        Get detection result from queue (non-blocking)
+        
+        Returns:
+            dict or None: Detection result if available, None otherwise
+        """
+        try:
+            result = self.result_queue.get_nowait()
+            print(f"Retrieved result from queue. Result queue size: {self.result_queue.qsize()}")
+            # Update last_detections for display
+            if "full_detections" in result:
+                self.last_detections = result["full_detections"]
+            return result
+        except asyncio.QueueEmpty:
+            return None
+    
     def detect_frame(self, frame):
         """
         Detect objects in the frame using YOLO
@@ -132,9 +253,10 @@ class FrameReceiver:
         Args:
             frame (numpy.ndarray): BGR image frame
         """
-        if self.frame_count % self.process_every_n_frames == 0:
-            return self.detector.get_detection_centers(frame)
-        return []
+        # if self.frame_count % self.process_every_n_frames == 0:
+        #     return self.detector.get_detection_centers(frame)
+        # return []
+        return self.detector.get_detection_centers(frame)
     
     async def receive_frames(self):
         """
@@ -147,6 +269,9 @@ class FrameReceiver:
             print("Connected! Receiving frames...")
             self.running = True
             
+            # Start background batch processing task
+            self.processing_task = asyncio.create_task(self.background_batch_processor())
+            
             while self.running:
                 try:
                     # Clear the receive queue by getting all available messages
@@ -157,37 +282,49 @@ class FrameReceiver:
                     try:
                         while True:
                             message = await self.client.receive_data()
-                            latest_message = message
-                    except asyncio.TimeoutError:
+                            if message is not None:
+                                latest_message = message
+                            else:
+                                break
+                    except Exception:
                         # No more messages available
                         pass
                     
                     # If no new message, wait for one
                     if latest_message is None:
-                        latest_message = await self.client.await_data() 
+                        latest_message = await self.client.await_data()
+                        if latest_message is None:
+                            continue
                     
+                    # Data is already parsed JSON from client
+                    data = latest_message
                     
-                    # Parse JSON data
-                    data = json.loads(latest_message)
+                    # Debug: Print received data structure
+                    if data:
+                        print(f"Received data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
                     
                     # Extract camera and sensor data
-                    camera_data = data.get("camera")
-                    sensor_data = data.get("sensors", {})
+                    camera_data = data.get("camera") if isinstance(data, dict) else None
+                    sensor_data = data.get("sensors", {}) if isinstance(data, dict) else {}
                     
                     if camera_data:
                         # Decode and display frame
                         frame = decode_frame(camera_data)
                         if frame is not None:
-                            if self.show_info: self.display_frame_with_info(frame, sensor_data)
-                            detections = self.detect_frame(frame)
-
-                            #If detections are available, send them to the server
-                            if detections:
-                                await self.client.send_data({
-                                    "detections": detections,
-                                    "frame_id": data.get("frame_id", -1),
-                                    "timestamp": data.get("timestamp", None)
-                                })
+                            if self.show_info: 
+                                self.display_frame_with_info(frame, sensor_data)
+                            
+                            # Add frame to batch processing queue (non-blocking)
+                            await self.add_frame_to_batch(frame, data)
+                            
+                            # Check for available detection results (non-blocking)
+                            detection_result = await self.get_detection_result()
+                            if detection_result and detection_result["detections"]:
+                                #remove the full detections from the result
+                                # and only send the coordinates
+                                detection_result["full_detections"] = None
+                                await self.client.send_data(detection_result)
+                                
                             # Check for 'q' key press to quit
                             key = cv2.waitKey(1) & 0xFF
                             if key == ord('q'):
@@ -212,11 +349,21 @@ class FrameReceiver:
             print(f"Connection error: {e}")
         finally:
             self.running = False
+            
+            # Signal background processor to stop and wait for it
+            if self.processing_task:
+                await self.frame_queue.put(None)  # Shutdown signal
+                try:
+                    await asyncio.wait_for(self.processing_task, timeout=5.0)
+                except asyncio.TimeoutError:
+                    print("Background processor didn't stop in time, cancelling...")
+                    self.processing_task.cancel()
+            
             cv2.destroyAllWindows()
             print("Receiver stopped")
     
     def stop(self):
-        """Stop the receiver"""
+        """Stop the receiver and process any remaining frames"""
         self.running = False
 
 async def main():

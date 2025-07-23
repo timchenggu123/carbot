@@ -51,6 +51,48 @@ class FlyYOLO():
         
         return detections
 
+    def get_detection_centers_batch(self, images):
+        """
+        Detect objects in a batch of images and return center coordinates ranked by confidence.
+        
+        Args:
+            images (list): List of images to process
+            
+        Returns:
+            List of lists: [[(x, y, confidence), ...], ...] for each image
+        """
+        if not images:
+            return []
+        
+        print(f"Processing batch of {len(images)} images...")
+        
+        # Run prediction on batch
+        results = self.model(images, conf=0.6, iou=0.8, max_det=100, save=False)
+        
+        batch_detections = []
+        for r in results:
+            detections = []
+            boxes = r.boxes
+            if boxes is not None:
+                for box in boxes:
+                    # Get bounding box coordinates (x1, y1, x2, y2)
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    
+                    # Calculate center coordinates
+                    center_x = int((x1 + x2) / 2)
+                    center_y = int((y1 + y2) / 2)
+                    
+                    # Get confidence score
+                    confidence = float(box.conf[0].cpu().numpy())
+                    
+                    detections.append((center_x, center_y, confidence, x1, y1, x2, y2))
+            
+            # Sort by confidence (highest first)
+            detections.sort(key=lambda x: x[2], reverse=True)
+            batch_detections.append(detections)
+        
+        return batch_detections
+
     def visualize_detections(self, image_path, model_path=None):
         """
         Visualize detections with OpenCV (original functionality).
