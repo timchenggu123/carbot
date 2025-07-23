@@ -78,6 +78,7 @@ class Client:
             return
         
         try:
+            print(f"Sending data: {data}")
             data = json.dumps(data) if isinstance(data, dict) else data
             await self.ws.send(data)
         except websockets.exceptions.ConnectionClosed:
