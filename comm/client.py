@@ -13,7 +13,9 @@ class Client:
         
         Args:
             server_host (str): WebSocket server hostname/IP
-            server_port (int): WebSocket server port
+            server_port (int): WebSoc
+            
+            ket server port
         """
         self.server_host = server_host
         self.server_port = server_port
@@ -45,22 +47,51 @@ class Client:
     async def receive_data(self, timeout=0.001):
         """
         Try to receive a single frame from the WebSocket server
-     
+        
+        Returns:
+            Parsed JSON data or None if no data/timeout
         """
+        if self.ws is None or not self.running:
+            return None
+            
         try:
             msg = await asyncio.wait_for(self.ws.recv(), timeout=timeout)
+            # Parse JSON if it's a string
+            if isinstance(msg, str):
+                return json.loads(msg)
             return msg
+        except asyncio.TimeoutError:
+            return None  # No data available
         except websockets.exceptions.ConnectionClosed:
             print("Connection closed by server")
+            self.running = False
+            return None
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            return None
+        except Exception as e:
+            print(f"Error receiving data: {e}")
+            return None
 
     async def await_data(self):
         """
         Await data from the WebSocket server, blocking until data is received
         """
+        if self.ws is None or not self.running:
+            return None
+            
         try:
-            return await self.ws.recv()
+            msg = await self.ws.recv()
+            # Parse JSON if it's a string
+            if isinstance(msg, str):
+                return json.loads(msg)
+            return msg
         except websockets.exceptions.ConnectionClosed:
             print("Connection closed by server")
+            self.running = False
+            return None
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
             return None
         except Exception as e:
             print(f"Error receiving data: {e}")

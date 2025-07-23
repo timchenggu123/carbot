@@ -29,7 +29,7 @@ async def video_streamer(server):
             frame_count += 1
             
             # Capture camera frame
-            img = camera.capture_frame_base64(resize_to=(320, 240))
+            img = camera.capture_frame_base64(resize_to=(640, 480))
             if img is None:
                 print("Failed to capture frame")
                 await asyncio.sleep(0.1)
