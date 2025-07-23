@@ -5,12 +5,17 @@ from sensors.camera import get_camera_instance, close_camera
 from comm.server import Server
 import asyncio
 import sensors.lidar as lidar
-import json
 from driver.picarx import Picarx
-X_MAX = 320
-Y_MAX = 240
-X_CENTER = X_MAX // 2
-Y_CENTER = Y_MAX // 2
+import cv2
+import time
+from PIL import Image
+import base64
+import io
+W = 640
+H = 480
+JPEG_QUALITY = 75  # Reduce from default 95
+X_CENTER = W // 2
+Y_CENTER = H // 2
 def tracker(px, x, y, angles):
     '''
     Track the object using PicarX
@@ -18,10 +23,10 @@ def tracker(px, x, y, angles):
 
     x_angle, y_angle = angles
     # Calculate the error from the center
-    x_angle += (x-X_CENTER) / X_MAX * 35 * 0.6
+    x_angle += (x-X_CENTER) / W * 35 * 0.6
     px.set_cam_pan_angle(x_angle)
 
-    y_angle += -(y - Y_CENTER) / Y_MAX * 35 * 0.6
+    y_angle += -(y - Y_CENTER) / H * 35 * 0.6
     px.set_cam_tilt_angle(y_angle)
 
     angles[0] = x_angle
@@ -29,6 +34,33 @@ def tracker(px, x, y, angles):
     
     print(f"Tracking object at ({x}, {y}) with angles ({x_angle}, {y_angle})")
 
+# def process_frame(frame):
+#     '''
+#     Process the frame to increase contrast and brightness
+#     '''
+#     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#     frame = cv2.convertScaleAbs(frame, alpha=1.5, beta=0)
+#     return frame
+
+# def fast_encode_frame(frame, quality=JPEG_QUALITY):
+#     """
+#     Fast frame encoding with optimizations
+#     """
+#     # Convert to PIL Image
+
+#     frame = cv2.resize(frame, (W, H))
+#     if len(frame.shape) == 3:
+#         pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+#     else:
+#         pil_img = Image.fromarray(frame)
+    
+#     # Encode to JPEG with specified quality
+#     buffer = io.BytesIO()
+#     pil_img.save(buffer, format='JPEG', quality=quality, optimize=True)
+    
+#     # Convert to base64
+#     encoded_img = base64.b64encode(buffer.getvalue()).decode('utf-8')
+#     return encoded_img
 
 async def video_streamer(server):
     """
@@ -53,10 +85,15 @@ async def video_streamer(server):
     idle_count = 0
     try:
         while True:
+            time_start = time.time()
             frame_count += 1
             
-            # Capture camera frame
-            img = camera.capture_frame_base64(resize_to=(320, 240))
+            # Capture camera frame (time this)
+            # img = camera.capture_frame()
+            # img = process_frame(img)
+            # img = fast_encode_frame(img, quality=JPEG_QUALITY)
+            img = camera.capture_frame_base64(resize_to=(W, H))
+            
             if img is None:
                 print("Failed to capture frame")
                 await asyncio.sleep(0.1)
@@ -77,7 +114,7 @@ async def video_streamer(server):
                 "timestamp": asyncio.get_event_loop().time()
             }
             
-            # Send data through server
+            # Send data through server (time this)
             await server.send_data(data)
             
             # Check for commands
@@ -103,7 +140,9 @@ async def video_streamer(server):
                     angles[0] = angles[1] = 0  # Reset angles if no command
                     tracker(px, X_CENTER, Y_CENTER, angles)  # Reset tracking if no command
             # Control frame rate (~30 FPS)
-            await asyncio.sleep(1/refresh_rate)
+            duration = time.time() - time_start
+            sleep_time = max(0, (1 / refresh_rate) - duration)
+            await asyncio.sleep(sleep_time)
 
     except Exception as e:
         print(f"Error in video streamer: {e}")
