@@ -38,6 +38,7 @@ class Picarx(object):
                 motor_pins:list=['D4', 'D5', 'P13', 'P12'],
                 grayscale_pins:list=['A0', 'A1', 'A2'],
                 ultrasonic_pins:list=['D2','D3'],
+                pump_pin:str='P3',
                 config:str=CONFIG,
                 ):
 
@@ -45,9 +46,13 @@ class Picarx(object):
         utils.reset_mcu()
         time.sleep(0.2)
 
+
         # --------- config_flie ---------
         self.config_file = fileDB(config, 777, os.getlogin())
 
+        # -------- Pump -------------------
+        self.pump = PWM(pump_pin)
+        self.pump.pulse_width_percent(0)
         # --------- servos init ---------
         self.cam_pan = Servo(servo_pins[0])
         self.cam_tilt = Servo(servo_pins[1])   
@@ -108,8 +113,13 @@ class Picarx(object):
         self.pan_angle=0
         self.tilt_angle=0
 
-        # -------- Pump -------------------
-        self.pump = PWM(3)
+        
+
+    def activate_pump(self, speed=100):
+        speed = constrain(speed, 0, 100)
+        self.pump.pulse_width_percent(speed)
+    
+    def deactivate_pump(self):
         self.pump.pulse_width_percent(0)
 
     def set_motor_speed(self, motor, speed):

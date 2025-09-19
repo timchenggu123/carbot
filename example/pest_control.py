@@ -9,53 +9,73 @@ px = Picarx()
 
 class AutoDrivePilot(Autopilot):
 
+    def __init__(self, px):
+        super().__init__()
+        self.px = px
+    
+    def change_state_hook(self):
+        self.px.stop()
+        sleep(1.5)
+
+    def scan_area(self):
+        self.scan = self.pan_tilt_scan
+        
+        #First, turn 45 degrees to the right and scan)
+        turn_func = lambda: self.init_turn(45)
+        self.function_queue.append(turn_func)
+        self.function_queue.append(self.pan_tilt_scan)
+        turn_back_func = lambda: self.init_turn(-45)
+        self.function_queue.append(turn_back_func)
+        self.function_queue.append(self.cruise)
+        return
 
     def run_step(self, sensor_inputs: SensorInputs = None):
         if sensor_inputs is None:
             raise ValueError("Sensor inputs must be provided")
         self.sensor_inputs = sensor_inputs
-
+        print(f"State: {self.state}, Step: {self.step}")
         if self.state == self.STATE_READY:
-            return self.cruise()
+            return self.function_queue.pop(0)()
         elif self.state == self.STATE_CRUISING:
+            print(self.step)
             self.d_threshold = self.D_THRESHOLD_BASE
             self.scan = self.pan_tilt_scan
             if self.check_obstacle():
-                return self.scan()
+                return self.stop()
+
+            # Scan area every 1 meter
+            d = self.get_cruise_dist()
+            print(f"Cruised {d} meters")
+            if d > 1.0:
+                self.log(f"Cruised {d} meters, scanning area")
+                self.scan_area()
+                return self.function_queue.pop(0)()
             return self.cruise()
         elif self.state == self.STATE_SCANNING:
+            print(self.step)
             if self.step >= self.num_steps:
                 self.step = 0
-                if self.max_dist < self.d_threshold:
-                    self.log(f"Obstacle too close, backing up, d_threshold: {self.d_threshold}, max_dist: {self.max_dist}")
-                    self.increase_scan_threshold()
-                    self.scan = self.full_rotate_scan
-                    return self.back()
-                else:
-                    print("!!!!!!!!!!", self.target_angle)
-                    angle = self.target_angle if self.target_angle < 180 else self.target_angle - 360
-                    return self.turn(angle)
+                return self.function_queue.pop(0)()  # Return the result of next function
             return self.scan()
         elif self.state == self.STATE_TURNING:
+            print(self.step)
             if self.step >= self.num_steps:
                 self.step = 0
-                return self.cruise()
+                return self.function_queue.pop(0)()  # Return the result of next function
             return self.turn()
         elif self.state == self.STATE_BACKING:
             if not self.check_obstacle():
                 self.step = 0
-                return self.scan()
+                return self.function_queue.pop(0)()  # Return the result of next function
             if self.step >= self.num_steps:
                 self.step = 0
-                return self.scan()
+                return self.function_queue.pop(0)()  # Return the result of next function
             return self.back()
         elif self.state == self.STATE_STOPPED:
             return self.stop()
-        if sensor_inputs.ultrasonic_distance < self.D_THRESHOLD:
-            self.scan()
 
 def main():
-    ap = Autopilot()
+    ap = AutoDrivePilot(px)
     sin = SensorInputs()
     while True:
         # sin.ultrasonic_distance = px.get_distance() #New version of vehicle does not use this
