@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Robot Controller</title>
+  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.1/dist/nipplejs.min.js"></script>
+  <style>
+    body { background: #111; color: #fff; text-align: center; font-family: sans-serif; }
+    img { width: 90%; border-radius: 12px; margin-top: 10px; }
+    .joysticks { display: flex; justify-content: space-around; margin-top: 20px; }
+    .stick { width: 150px; height: 150px; background: #222; border-radius: 50%; }
+  </style>
+</head>
+<body>
+  <h2>🤖 Robot Dashboard</h2>
+  <img id="video" src="http://192.168.x.xxx:8000/video" /> <!-- 👈 robot IP -->
+  <div class="joysticks">
+    <div id="left" class="stick"></div>
+    <div id="right" class="stick"></div>
+  </div>
+
+  <script>
+    const ws = new WebSocket("ws://" + location.host + "/ws/control");
+
+    function makeJoystick(id, cmdType) {
+      const joystick = nipplejs.create({
+        zone: document.getElementById(id),
+        mode: 'static',
+        position: { left: '50%', top: '50%' },
+        color: 'cyan'
+      });
+      joystick.on('move', (evt, data) => {
+        if (data.direction)
+          ws.send(JSON.stringify({ cmd: cmdType, dir: data.direction.angle }));
+      });
+      joystick.on('end', () => ws.send(JSON.stringify({ cmd: cmdType, dir: 'stop' })));
+    }
+
+    makeJoystick('left', 'move');
+    makeJoystick('right', 'camera');
+  </script>
+</body>
+</html>
