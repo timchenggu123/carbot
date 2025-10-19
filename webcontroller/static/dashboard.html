@@ -1,43 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Robot Controller</title>
-  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.1/dist/nipplejs.min.js"></script>
+  <meta charset="utf-8" />
+  <title>WebRTC Robot View</title>
   <style>
-    body { background: #111; color: #fff; text-align: center; font-family: sans-serif; }
-    img { width: 90%; border-radius: 12px; margin-top: 10px; }
-    .joysticks { display: flex; justify-content: space-around; margin-top: 20px; }
-    .stick { width: 150px; height: 150px; background: #222; border-radius: 50%; }
+    body { background: #111; color: #fff; text-align: center; }
+    video { width: 90%; border-radius: 12px; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h2>🤖 Robot Dashboard</h2>
-  <img id="video" src="http://192.168.x.xxx:8000/video" /> <!-- 👈 robot IP -->
-  <div class="joysticks">
-    <div id="left" class="stick"></div>
-    <div id="right" class="stick"></div>
-  </div>
+  <h2>WebRTC Camera Stream</h2>
+  <video id="video" autoplay playsinline></video>
 
   <script>
-    const ws = new WebSocket("ws://" + location.host + "/ws/control");
+    const ws = new WebSocket("ws://" + location.host + "/ws/browser");
+    const pc = new RTCPeerConnection();
 
-    function makeJoystick(id, cmdType) {
-      const joystick = nipplejs.create({
-        zone: document.getElementById(id),
-        mode: 'static',
-        position: { left: '50%', top: '50%' },
-        color: 'cyan'
-      });
-      joystick.on('move', (evt, data) => {
-        if (data.direction)
-          ws.send(JSON.stringify({ cmd: cmdType, dir: data.direction.angle }));
-      });
-      joystick.on('end', () => ws.send(JSON.stringify({ cmd: cmdType, dir: 'stop' })));
+    pc.ontrack = event => {
+      const video = document.getElementById("video");
+      video.srcObject = event.streams[0];
+    };
+
+    ws.onmessage = async (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.answer) {
+        const answer = msg.answer;
+        await pc.setRemoteDescription(answer);
+      }
+    };
+
+    async function start() {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      ws.send(JSON.stringify({ offer: pc.localDescription }));
     }
 
-    makeJoystick('left', 'move');
-    makeJoystick('right', 'camera');
+    ws.onopen = start;
   </script>
 </body>
 </html>
