@@ -14,7 +14,7 @@ class FlyYOLO():
         
         # Load your trained model
         if model_path is None:
-            model_path = os.path.join(base_path, "runs/detect/yolov8n_fly4/weights/best.pt")
+            model_path = os.path.join(base_path, "model/best.pt")
         self.model = YOLO(model_path)
 
     def get_detection_centers(self, image, model_path=None):

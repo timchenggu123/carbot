@@ -1,21 +1,74 @@
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 from driver.picarx import Picarx
-from autopilot.autopilot import Autopilot, SensorInputs
+from autopilot.autopilot import Autopilot, SensorInputs, Command
 from sensors import lidar
+from sensors.camera import get_camera_instance
 from time import sleep
+from vision.fly.detect import FlyYOLO
 
 px = Picarx()
 
 class AutoDrivePilot(Autopilot):
+    STATE_FLY_DETECTION=0
+    STATE_SPRAY_PESTICIDE=1
 
-    def __init__(self, px):
+    def __init__(self, px, fly_detect=None):
         super().__init__()
+        #print all class attributes
+        print(dir(self))
         self.px = px
+        self.camera = get_camera_instance()
+        self.model = fly_detect if fly_detect is not None else FlyYOLO()
+        if self.camera is None:
+            print("Failed to initialize camera. Exiting...")
+            exit(1)
     
     def change_state_hook(self):
+        #Sleep to reduce instantaneous motor current spike
         self.px.stop()
         sleep(1.5)
+
+    
+    def spray_pesticide(self):
+        if self.state != self.STATE_SPRAY_PESTICIDE:
+            self.change_state(self.STATE_SPRAY_PESTICIDE)
+
+        # Initialize scan if not already started
+        if self.step == 0:
+            self.num_steps = 60
+            self.px.activate_pump()
+            self.log("Pesticide spray activated")
+
+        pan = -30 + (self.step * 60 / self.num_steps)
+        tilt = -10
+        self.step += 1
+        return Command(0, 0, pan, tilt)
+
+    def fly_detect(self):
+        if self.state != self.STATE_FLY_DETECTION:
+            self.change_state(self.STATE_FLY_DETECTION)
+
+        # Initialize scan if not already started
+        if self.step == 0:
+            self.num_steps = 60
+            
+        #Run fly detection model
+        frame = self.camera.capture_frame()
+        if frame is not None:
+            detections = self.model.get_detection_centers(frame)
+            if detections:
+                #early exit if fly detected
+                self.step=self.num_steps
+                self.function_queue.insert(0, self.spray_pesticide)
+
+        else:
+            self.log("Failed to capture frame")
+
+        pan = -30 + (self.step * 60 / self.num_steps)
+        tilt = -10
+        self.step += 1
+        return Command(0, 0, pan, tilt)
 
     def scan_area(self):
         self.scan = self.pan_tilt_scan
@@ -23,7 +76,7 @@ class AutoDrivePilot(Autopilot):
         #First, turn 45 degrees to the right and scan)
         turn_func = lambda: self.init_turn(45)
         self.function_queue.append(turn_func)
-        self.function_queue.append(self.pan_tilt_scan)
+        self.function_queue.append(self.fly_detect)
         turn_back_func = lambda: self.init_turn(-45)
         self.function_queue.append(turn_back_func)
         self.function_queue.append(self.cruise)
@@ -51,12 +104,20 @@ class AutoDrivePilot(Autopilot):
                 self.scan_area()
                 return self.function_queue.pop(0)()
             return self.cruise()
-        elif self.state == self.STATE_SCANNING:
+        elif self.state == self.STATE_FLY_DETECTION:
             print(self.step)
             if self.step >= self.num_steps:
                 self.step = 0
                 return self.function_queue.pop(0)()  # Return the result of next function
-            return self.scan()
+            return self.fly_detect()
+        elif self.state == self.STATE_SPRAY_PESTICIDE:
+            print(self.step)
+            if self.step >= self.num_steps:
+                self.step = 0
+                self.px.deactivate_pump()
+                self.log("Pesticide spray deactivated")
+                return self.function_queue.pop(0)()  # Return the result of next function
+            return self.spray_pesticide()
         elif self.state == self.STATE_TURNING:
             print(self.step)
             if self.step >= self.num_steps:
@@ -75,7 +136,8 @@ class AutoDrivePilot(Autopilot):
             return self.stop()
 
 def main():
-    ap = AutoDrivePilot(px)
+    model = FlyYOLO()
+    ap = AutoDrivePilot(px, model)
     sin = SensorInputs()
     while True:
         # sin.ultrasonic_distance = px.get_distance() #New version of vehicle does not use this
