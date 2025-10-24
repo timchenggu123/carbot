@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Live Camera</h3>
+<img src="/video" class="responsive" alt="Live Feed" />
+<a href="/" onclick="stopCamera()" class="button">⬅ Back</a>
+<script>
+    // Stop camera when leaving or refreshing the page
+    function stopCamera() {
+      navigator.sendBeacon('/stop_camera');
+    }
+
+    window.addEventListener('beforeunload', stopCamera);
+</script>
+{% endblock %}

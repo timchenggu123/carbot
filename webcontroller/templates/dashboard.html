@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Robot Dashboard</title>
+<style>
+#video { width: 640px; height: 480px; border:1px solid black; }
+#main-menu { margin-top:10px; }
+</style>
+</head>
+<body>
+<h2>Robot Dashboard</h2>
+<img id="video" src="/video" />
+<div id="main-menu">
+  <button onclick="sendCommand('camera')">Camera</button>
+  <button onclick="sendCommand('system_test')">System Test</button>
+  <button onclick="sendCommand('detection')">Detection</button>
+  <button onclick="sendCommand('sequence')">Sequence</button>
+</div>
+
+<script>
+let ws = new WebSocket("ws://"+location.hostname+":8765");
+ws.onopen = () => console.log("WebSocket connected");
+ws.onmessage = (msg) => console.log("Received:", msg.data);
+
+function sendCommand(cmd){
+    ws.send(JSON.stringify({type:"command", value:cmd}));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title if title else "Robot Control" }}</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    header {
+      background: #007bff;
+      color: white;
+      width: 100%;
+      padding: 1rem;
+      font-size: 1.4rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    main {
+      padding: 1.2rem;
+      width: 100%;
+      max-width: 800px;
+    }
+    a.button, button {
+      display: block;
+      width: 100%;
+      max-width: 320px;
+      margin: 0.6rem auto;
+      padding: 1rem;
+      font-size: 1.1rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 0.8rem;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    a.button:hover, button:hover {
+      background: #0056b3;
+    }
+    img.responsive {
+      width: 100%;
+      height: auto;
+      border-radius: 0.5rem;
+      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+    pre {
+      background: #fff;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      font-size: 0.9rem;
+      text-align: left;
+      overflow-y: auto;
+      max-height: 70vh;
+    }
+  </style>
+</head>
+<body>
+  <header>{{ header if header else "Robot Control" }}</header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

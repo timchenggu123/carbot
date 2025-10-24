@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>System Logs</h3>
+<pre id="log"></pre>
+<a href="/" class="button">⬅ Back</a>
+
+<script>
+const log = document.getElementById("log");
+const ws = new WebSocket("ws://" + location.hostname + ":8765");
+
+ws.onmessage = (msg) => {
+  const data = JSON.parse(msg.data);
+  log.textContent += JSON.stringify(data) + "\\n";
+  log.scrollTop = log.scrollHeight;
+};
+
+// periodically send test logs
+setInterval(() => {
+  ws.send(JSON.stringify({ type: "ping", time: Date.now() }));
+}, 2000);
+</script>
+{% endblock %}
