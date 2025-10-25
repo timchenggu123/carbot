@@ -63,7 +63,28 @@ class Camera:
         except Exception as e:
             print(f"Error capturing frame: {e}")
             return None
-    
+
+    def capture_frame_jpeg(self, quality=50):
+        """
+        Capture a frame and return it as JPEG
+
+        Args:
+            quality (int): JPEG quality (0-100)
+
+        Returns:
+            bytes: JPEG image bytes or None if capture fails
+        """
+        frame = self.capture_frame()
+        if frame is None:
+            return None
+
+        # Encode frame as JPEG
+        ret, jpeg = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        if not ret:
+            return None
+
+        return jpeg.tobytes()
+
     def capture_frame_base64(self, resize_to=None, show_preview=False):
         """
         Capture a frame and return it as base64 encoded JPEG
@@ -190,3 +211,61 @@ def close_camera():
     if _camera_instance:
         _camera_instance.close()
         _camera_instance = None
+
+
+class WebCamera:
+
+    def __init__(self, camera_index=0, width=640, height=480, fps=30):
+        """
+        Initialize a webcam using OpenCV
+        
+        Args:
+            camera_index (int): Index of the camera (default 0)
+            width (int): Width of the video frame
+            height (int): Height of the video frame
+            fps (int): Frames per second
+        """
+        self.cap = cv2.VideoCapture(camera_index)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        self.cap.set(cv2.CAP_PROP_FPS, fps)
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        
+        if not self.cap.isOpened():
+            raise RuntimeError("ERROR: Camera not opened")
+
+    def capture_frame(self):
+        """
+        Capture a single frame from the webcam
+        
+        Returns:
+            numpy.ndarray: BGR image frame or None if capture fails
+        """
+        ret, frame = self.cap.read()
+        if not ret:
+            return None
+        return frame
+
+    def capture_jpeg(self, quality=50):
+        """
+        Capture a frame and encode it as JPEG
+        
+        Args:
+            quality (int): JPEG quality (0-100)
+            
+        Returns:
+            bytes: JPEG encoded image or None if capture fails
+        """
+        frame = self.capture_frame()
+        if frame is None:
+            return None
+        ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        if not ret:
+            return None
+        return buffer.tobytes()
+
+    def release(self):
+        """Release the webcam"""
+        self.cap.release()
+
+
