@@ -3,14 +3,14 @@ import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 import struct
 import time
-from sensors.camera import WebCamera
+from sensors.camera import Camera
 
 def main():
-    cam = WebCamera()
+    cam = Camera()
     while True:
         data = cam.capture_jpeg()
         if data is None:
-            sleep(0.05)
+            time.sleep(0.05)
             continue
         # Write frame length as 4 bytes (big-endian) followed by frame
         sys.stdout.buffer.write(struct.pack('>I', len(data)))

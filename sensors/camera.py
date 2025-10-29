@@ -64,7 +64,7 @@ class Camera:
             print(f"Error capturing frame: {e}")
             return None
 
-    def capture_frame_jpeg(self, quality=50):
+    def capture_jpeg(self, quality=50):
         """
         Capture a frame and return it as JPEG
 
@@ -74,7 +74,12 @@ class Camera:
         Returns:
             bytes: JPEG image bytes or None if capture fails
         """
-        frame = self.capture_frame()
+
+        if not self.is_initialized:
+            return None
+            
+        # Capture frame from Pi Camera
+        frame = self.picam2.capture_array()
         if frame is None:
             return None
 
