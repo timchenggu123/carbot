@@ -1,67 +1,65 @@
-from flask import Flask, Response, render_template
+from flask import Flask, Response, render_template, jsonify
 import subprocess
-import struct
-import threading
-import queue
 import signal
+import time
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.io import AsyncFrameFIFO, AsyncTextFIFO
 
 app = Flask(__name__)
 
-frame_queue = queue.Queue(maxsize=3)
+# Global FIFO channels and camera process
+frame_fifo = AsyncFrameFIFO("camera")
+text_fifo = AsyncTextFIFO("camera")
 camera_process = None
-reader_thread = None
-stop_reader = False
+
+# Start reading tasks
+frame_fifo.start_reading()
+text_fifo.start_reading()
 
 def start_camera():
-    global camera_process, reader_thread, stop_reader
+    """Start the camera worker process"""
+    global camera_process
     if camera_process is not None:
         return
-
+    
+    # Start the camera worker (async FIFO mode)
     camera_process = subprocess.Popen(
-        ["python3", "demos/camera_worker.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        bufsize=0
+        ["python3", "demos/camera_worker.py"]
     )
-    stop_reader = False
-    reader_thread = threading.Thread(target=read_frames)
-    reader_thread.start()
-    print("Camera worker started")
+    print("Camera worker started (async FIFO mode)")
 
 def stop_camera():
-    global camera_process, stop_reader
+    """Stop the camera worker process"""
+    global camera_process
     if camera_process:
-        stop_reader = True
+        # Force terminate
         camera_process.send_signal(signal.SIGTERM)
-        camera_process.wait(timeout=2)
+        try:
+            camera_process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            camera_process.kill()
+        
         camera_process = None
         print("Camera worker stopped")
 
-def read_frames():
-    global stop_reader
-    pipe = camera_process.stdout
-    while not stop_reader:
-        try:
-            header = pipe.read(4)
-            if not header:
-                break
-            (length,) = struct.unpack('>I', header)
-            data = pipe.read(length)
-            if not data:
-                break
-            if not frame_queue.full():
-                frame_queue.put(data)
-        except Exception as e:
-            print("Frame read error:", e)
-            break
-
 def gen_frames():
+    """Generate frames from async FIFO for HTTP streaming"""
     while True:
-        frame = frame_queue.get()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n'
-               b'Content-Length: ' + f"{len(frame)}".encode() + b'\r\n\r\n' +
-               frame + b'\r\n')
+        try:
+            # Get frame using synchronous wrapper
+            frame_data = frame_fifo.get_frame(timeout=1.0)
+            if frame_data:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-Length: ' + f"{len(frame_data)}".encode() + b'\r\n\r\n' +
+                       frame_data + b'\r\n')
+            else:
+                time.sleep(0.01)
+        except Exception as e:
+            print(f"Error getting frame: {e}")
+            time.sleep(0.01)
 
 @app.route('/')
 def index():
@@ -82,5 +80,36 @@ def stop_camera_route():
     stop_camera()
     return "Camera stopped"
 
+@app.route('/camera/logs')
+def camera_logs():
+    """Get recent camera logs from async text FIFO"""
+    logs = []
+    
+    # Read all available text messages (non-blocking)
+    for _ in range(10):  # Limit to prevent blocking
+        try:
+            text = text_fifo.readline(timeout=0.001)
+            if text is None:
+                break
+            logs.append(text)
+        except Exception:
+            break
+    
+    return jsonify({"logs": logs})
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    import atexit
+    
+    def cleanup():
+        """Cleanup when server shuts down"""
+        stop_camera()
+        frame_fifo.close()
+        text_fifo.close()
+    
+    atexit.register(cleanup)
+    
+    try:
+        app.run(host='0.0.0.0', port=5000, threaded=True)
+    except KeyboardInterrupt:
+        print("\nShutting down server...")
+        cleanup()

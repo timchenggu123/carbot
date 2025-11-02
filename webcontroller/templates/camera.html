@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h3>Live Camera</h3>
-<img src="/video" class="responsive" alt="Live Feed" />
+<img src="/video" alt="Live Feed" style="max-width: 800px; width: auto; height: auto; border-radius: 0.5rem; box-shadow: 0 0 5px rgba(0,0,0,0.2);" />
 <a href="/" onclick="stopCamera()" class="button">⬅ Back</a>
 <script>
     // Stop camera when leaving or refreshing the page

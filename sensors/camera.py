@@ -5,7 +5,7 @@ import base64
 import numpy as np
 
 class Camera:
-    def __init__(self, size=(320, 240)):
+    def __init__(self, size=(640, 480)):
         """
         Initialize the Pi Camera
         
@@ -19,11 +19,20 @@ class Camera:
         
         print("Attempting to initialize Pi Camera...")
         
-        # Configure camera
+        # Configure camera with better quality settings
         config = self.picam2.create_preview_configuration(
             main={"size": self.size, "format": "RGB888"}
         )
         self.picam2.configure(config)
+        
+        # Set camera controls for better image quality
+        controls = {
+            "Brightness": 0.0,  # -1.0 to 1.0
+            "Contrast": 1.2,    # 0.0 to 2.0, slightly higher contrast
+            "Saturation": 1.1,  # 0.0 to 2.0, slightly more saturated
+            "Sharpness": 1.2,   # 0.0 to 2.0, sharper images
+        }
+        self.picam2.set_controls(controls)
         
         try:
             self.picam2.start()
@@ -64,7 +73,7 @@ class Camera:
             print(f"Error capturing frame: {e}")
             return None
 
-    def capture_jpeg(self, quality=50):
+    def capture_jpeg(self, quality=85):
         """
         Capture a frame and return it as JPEG
 
@@ -78,17 +87,24 @@ class Camera:
         if not self.is_initialized:
             return None
             
-        # Capture frame from Pi Camera
-        frame = self.picam2.capture_array()
-        if frame is None:
-            return None
+        try:
+            # Capture frame from Pi Camera
+            frame = self.picam2.capture_array()
+            if frame is None:
+                return None
 
-        # Encode frame as JPEG
-        ret, jpeg = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-        if not ret:
-            return None
+            # picamera2 captures in RGB, convert to BGR for OpenCV compatibility
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-        return jpeg.tobytes()
+            # Encode frame as JPEG
+            ret, jpeg = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+            if not ret:
+                return None
+
+            return jpeg.tobytes()
+        except Exception as e:
+            print(f"Error capturing JPEG: {e}")
+            return None
 
     def capture_frame_base64(self, resize_to=None, show_preview=False):
         """
