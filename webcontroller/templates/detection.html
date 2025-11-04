@@ -1,28 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
-<h3>Live Camera</h3>
-<img src="/video" alt="Live Feed" style="max-width: 800px; width: auto; height: auto; border-radius: 0.5rem; box-shadow: 0 0 5px rgba(0,0,0,0.2);" />
+<h3>Live Detection</h3>
+<img src="/detection/video" alt="Detection Feed" style="max-width: 800px; width: auto; height: auto; border-radius: 0.5rem; box-shadow: 0 0 5px rgba(0,0,0,0.2);" />
 
 <div style="margin-top: 20px;">
-    <h4>Camera Logs</h4>
-    <textarea id="cameraLogs" readonly style="width: 100%; max-width: 800px; height: 200px; font-family: monospace; font-size: 12px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 10px; resize: vertical;">
+    <h4>Detection Logs</h4>
+    <textarea id="detectionLogs" readonly style="width: 100%; max-width: 800px; height: 200px; font-family: monospace; font-size: 12px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 10px; resize: vertical;">
 Loading logs...
     </textarea>
 </div>
 
-<a href="/" onclick="stopCamera()" class="button">⬅ Back</a>
+<a href="/" onclick="stopDetection()" class="button">⬅ Back</a>
 <script>
-    // Stop camera when leaving or refreshing the page
-    function stopCamera() {
-      navigator.sendBeacon('/stop_camera');
+    // Stop detection when leaving or refreshing the page
+    function stopDetection() {
+      navigator.sendBeacon('/detection/stop');
     }
 
-    // Update camera logs
+    // Update detection logs
     function updateLogs() {
-        fetch('/camera/logs')
+        fetch('/detection/logs')
             .then(response => response.json())
             .then(data => {
-                const logsTextarea = document.getElementById('cameraLogs');
+                const logsTextarea = document.getElementById('detectionLogs');
                 if (data.logs && data.logs.length > 0) {
                     logsTextarea.value = data.logs.join('\n');
                     // Auto-scroll to bottom
@@ -33,7 +33,7 @@ Loading logs...
             })
             .catch(error => {
                 console.error('Error fetching logs:', error);
-                const logsTextarea = document.getElementById('cameraLogs');
+                const logsTextarea = document.getElementById('detectionLogs');
                 if (logsTextarea.value === 'Loading logs...') {
                     logsTextarea.value = 'Error loading logs';
                 }
@@ -42,10 +42,10 @@ Loading logs...
 
     // Update logs every 2 seconds
     setInterval(updateLogs, 2000);
-    
+
     // Load logs immediately when page loads
     updateLogs();
 
-    window.addEventListener('beforeunload', stopCamera);
+    window.addEventListener('beforeunload', stopDetection);
 </script>
 {% endblock %}

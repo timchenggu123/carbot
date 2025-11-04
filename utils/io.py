@@ -2,6 +2,7 @@ import os
 import asyncio
 import threading
 import queue
+import abc
 
 class AsyncFrameFIFO:
     def __init__(self, io_name: str, max_queue_size: int = 10):
@@ -87,8 +88,10 @@ class AsyncFrameFIFO:
     def close(self):
         """Close the FIFO and cleanup."""
         if self.read_task is not None:
-            self.read_task.cancel()
-        os.close(self.write_fd)
+            # For threading.Thread, we can't cancel, just let it finish
+            pass
+        if self.write_fd is not None:
+            os.close(self.write_fd)
         try:
             os.remove(self.file_path)
         except OSError:
@@ -186,4 +189,3 @@ class AsyncTextFIFO:
             os.remove(self.file_path)
         except OSError:
             pass
-            
