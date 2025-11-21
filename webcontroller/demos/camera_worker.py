@@ -3,7 +3,7 @@ import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 import asyncio
 import time
-from sensors.camera import WebCamera
+from sensors.camera import Camera
 from utils.io import AsyncFrameFIFO, AsyncTextFIFO
 
 async def main():
@@ -15,7 +15,7 @@ async def main():
         await text_fifo.write_line("Camera worker starting...")
         
         # Initialize camera
-        cam = WebCamera()
+        cam = Camera()
         await text_fifo.write_line("WebCamera initialized successfully")
         
         frame_count = 0
