@@ -114,14 +114,15 @@ class Picarx(object):
         self.tilt_angle=0
 
         
-
+    '''Interface'''
     def activate_pump(self, speed=100):
         speed = constrain(speed, 0, 100)
         self.pump.pulse_width_percent(speed)
     
+    '''Interface'''
     def deactivate_pump(self):
         self.pump.pulse_width_percent(0)
-
+        
     def set_motor_speed(self, motor, speed):
         ''' set motor speed
         
@@ -192,10 +193,12 @@ class Picarx(object):
         self.config_file.set("picarx_cam_tilt_servo", "%s"%value)
         self.cam_tilt.angle(value)
 
+    '''Interface'''
     def set_cam_pan_angle(self, value):
         value = constrain(value, self.CAM_PAN_MIN, self.CAM_PAN_MAX)
         self.cam_pan.angle(-1*(value + -1*self.cam_pan_cali_val))
 
+    '''Interface'''
     def set_cam_tilt_angle(self,value):
         value = constrain(value, self.CAM_TILT_MIN, self.CAM_TILT_MAX)
         self.cam_tilt.angle(-1*(value + -1*self.cam_tilt_cali_val))
