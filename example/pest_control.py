@@ -146,8 +146,7 @@ def main():
 
         cmd = ap.run(sin)
         speed, angle, pan, tilt= cmd.speed, cmd.angle, cmd.pan, cmd.tilt
-        px.dir_current_angle = angle
-        px.turn(0)
+        px.turn(angle)
         px.left_motor_base_power = speed 
         px.right_motor_base_power = speed
         px.update_motor()

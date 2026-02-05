@@ -240,18 +240,17 @@ class Picarx(object):
         self.right_motor_base_power = max(-100, self.right_motor_base_power)
         self.right_motor_base_power = min(100, self.right_motor_base_power)
         
-    def turn(self, inc=2):
-        angle = self.dir_current_angle + inc
+    def turn(self, angle):
         angle = min(self.DIR_MAX, angle)
         angle = max(self.DIR_MIN, angle)
         self.set_dir_servo_angle(angle)
         
         power_scale = 1- (self.DIR_MAX - abs(angle)) / self.DIR_MAX
         #Turning right
-        if self.dir_current_angle > 0:
+        if angle > 0:
             self.right_motor_differential_power = int(200 * power_scale)
             self.left_motor_differential_power = - int(200 * power_scale)
-        elif self.dir_current_angle < 0:
+        elif angle < 0:
             self.left_motor_differential_power = int(200 * power_scale)
             self.right_motor_differential_power = - int(200 * power_scale)
         else:

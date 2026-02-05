@@ -9,6 +9,7 @@ from board import SCL, SDA
 import busio
 from adafruit_pca9685 import PCA9685
 from adafruit_motor import motor
+from lib import Motor
 
 class Adeept4WD:
     '''
@@ -25,112 +26,87 @@ Motor interface.
         self.motor_in2_pins = [14, 13, 10, 9]
         self.motor_directions = [-1, -1, -1, -1]
 
+        pwm_motor = PCA9685(busio.I2C(SCL, SDA), address=0x5f)
+        pwm_motor.frequency = self.freq
+
         self.motors=[]
         for in1, in2 in zip(self.motor_in1_pins, self.motor_in2_pins):
             motor = motor.DCMotor(pwm_motor.channels[in1], pwm_motor.channels[in2])
             motor.decay_mode = motor.SLOW_DECAY
             self.motors.append(motor)
         
-        self.pwm_motor = PCA9685(busio.I2C(SCL, SDA), address=0x5f)
-        self.pwm_motor.frequency = self.freq
+        self.motor_speeds = [0, 0, 0, 0] #Integer values from -100 to 100
         
+        # Legacy API for motor speed control
+        self.dir_current_angle = 0
+        self.left_motor_base_power = 0
+        self.right_motor_base_power = 0
+        self.left_motor_speed = 0
+        self.right_motor_speed = 0
 
+    #Common API
     def map(self,x,in_min,in_max,out_min,out_max):
         return (x - in_min)/(in_max - in_min) *(out_max - out_min) +out_min
-
+    
+    #Common API
     def stop(self):
         for m in self.motors:
             m.throttle = 0
-            
-
-def motorStop():#Motor stops
-    global motor1,motor2,motor3,motor4
-    motor1.throttle = 0
-    motor2.throttle = 0
-    motor3.throttle = 0
-    motor4.throttle = 0
-
-def Motor(channel,direction,motor_speed):
+        
+    #Common API
+    def set_cam_pan_angle(self, angle):
+        pass  # Placeholder for camera pan control
+    
+    #Common API
+    def set_cam_tilt_angle(self, angle):
+        pass  # Placeholder for camera tilt control
+    
+    #Common API
+    def update_motor(self):
     # channel,1~4:M1~M4
-  if motor_speed > 100:
-    motor_speed = 100
-  elif motor_speed < 0:
-    motor_speed = 0
+        for i in range(4):
+            motor_speed = self.motor_speeds[i]
+            if motor_speed > 100:
+                motor_speed = 100
+            elif motor_speed < -100:
+                motor_speed = -100
 
-  speed = map(motor_speed, 0, 100, 0, 1.0)
-
-  pwm_motor.frequency = FREQ
-  # Prevent the servo from affecting the frequency of the motor
-  if direction == -1:
-    speed = -speed
-  if channel == 1:
-    motor1.throttle = speed
-  elif channel == 2:
-    motor2.throttle = speed
-  elif channel == 3:
-    motor3.throttle = speed
-  elif channel == 4:
-    motor4.throttle = speed
-
-def move(speed, direction, turn, radius=0.6):   # 0 < radius <= 1  
-    #eg: move(100, 1, "no")--->forward
-    #    move(100, 1, "left")---> left forward
-    #speed:0~100. direction:1/-1. turn: "left", "right", "no".
-    if speed == 0:
-        motorStop() #all motor stop.
-    else:
-        if direction == 1: 			# forward
-            if turn == 'rotate-left': 		# rotate left
-                Motor(1, -M1_Direction, speed)
-                Motor(2, -M2_Direction, speed)
-                Motor(3, M3_Direction, speed)
-                Motor(4, M4_Direction, speed)
-            elif turn == 'rotate-right': 	# rotate right
-                Motor(1, M1_Direction, speed)
-                Motor(2, M2_Direction, speed)
-                Motor(3, -M3_Direction, speed)
-                Motor(4, -M4_Direction, speed)
-            elif turn == 'forward-left': 	# left forward
-                Motor(1, M1_Direction, 0)
-                Motor(2, M2_Direction, speed)
-                Motor(3, M3_Direction, 0)
-                Motor(4, M4_Direction, speed)
-            elif turn == 'forward-right': 	# right forward
-                Motor(1, M1_Direction, speed)
-                Motor(2, M2_Direction, 0)
-                Motor(3, M3_Direction, speed)
-                Motor(4, M4_Direction, 0)    
-            elif turn == 'left': 	# left
-                Motor(1, -M1_Direction, speed)
-                Motor(2, M2_Direction, speed)
-                Motor(3, -M3_Direction, speed)
-                Motor(4, M4_Direction, speed)
-            elif turn == 'right': 	# right
-                Motor(1, M1_Direction, speed)
-                Motor(2, -M2_Direction, speed)
-                Motor(3, M3_Direction, speed)
-                Motor(4, -M4_Direction, speed)            
-            else: 					# forward  (mid)
-                Motor(1, M1_Direction, speed)
-                Motor(2, M2_Direction, speed)
-                Motor(3, M3_Direction, speed)
-                Motor(4, M4_Direction, speed)
-        elif direction == -1: 		# backward
-            if turn == 'backward-left': 	# left backward
-                Motor(1, -M1_Direction, speed)
-                Motor(2, -M2_Direction, 0)
-                Motor(3, -M3_Direction, speed)
-                Motor(4, -M4_Direction, 0)
-            elif turn == 'backward-right': 	# right backward
-                Motor(1, -M1_Direction, 0)
-                Motor(2, -M2_Direction, speed)
-                Motor(3, -M3_Direction, 0)
-                Motor(4, -M4_Direction, speed)  
-            else: 					# backward (mid)
-                Motor(1, -M1_Direction, speed)
-                Motor(2, -M2_Direction, speed)
-                Motor(3, -M3_Direction, speed)
-                Motor(4, -M4_Direction, speed)
+            speed = map(motor_speed, 0, 100, 0, 1.0)
+            self.motors[i].throttle = speed if motor_speed >= 0 else -speed 
+        
+    #Common API
+    def turn(self, angle):
+        if angle > 0:
+            self.move(100, 'right')
+        else:
+            self.move(100, 'left')
+    
+    def move(self, speed, turn, radius=0.6):   # 0 < radius <= 1  
+        #eg: move(100, 1, "no")--->forward
+        #    move(100, 1, "left")---> left forward
+        #speed:0~100. direction:1/-1. turn: "left", "right", "no".
+                if turn == 'rotate-left': 		# rotate left
+                    self.motor_speeds = [-speed, -speed, speed, speed]
+                elif turn == 'rotate-right': 	# rotate right
+                    self.motor_speeds = [speed, speed, -speed, -speed]
+                elif turn == 'forward-left': 	# left forward
+                    self.motor_speeds = [speed, 0, speed, 0]
+                elif turn == 'forward-right': 	# right forward
+                    self.motor_speeds = [0, speed, 0, speed]
+                elif turn == 'left': 	# left
+                    self.motor_speeds = [speed, -speed, speed, -speed]
+                elif turn == 'right': 	# right
+                    self.motor_speeds = [-speed, speed, -speed, speed]
+                elif turn == "forward"					# forward  (mid)
+                    self.motor_speeds = [speed, speed, speed, speed]
+                elif turn == 'backward-left': 	# left backward
+                    self.motor_speeds = [0, -speed, 0, -speed]
+                elif turn == 'backward-right': 	# right backward
+                    self.motor_speeds = [-speed, 0, -speed, 0]
+                elif turn == "backward":				# backward (mid)
+                    self.motor_speeds = [-speed, -speed, -speed, -speed]
+                else: 
+                    self.motor_speeds = [0, 0, 0, 0]
 
 def destroy():
     motorStop()
