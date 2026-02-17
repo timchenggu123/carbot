@@ -8,7 +8,7 @@ import time
 from board import SCL, SDA
 import busio
 from adafruit_pca9685 import PCA9685
-from adafruit_motor import motor
+from adafruit_motor import motor, servo
 from lib import Motor
 
 class Adeept4WD:
@@ -21,12 +21,26 @@ Motor interface.
     M2 |_____| M3
 '''
     def __init__(self):
+        #Servo setup
+        self.i2c = busio.I2C(SCL, SDA)
+        self.pwm = PCA9685(self.i2c, address=0x5f)
+        self.pwm.frequency = 50
+        
+        # Initialize pan and tilt servos (channels 0 and 1)
+        self.servo_pan = servo.Servo(self.pwm.channels[0], min_pulse=500, max_pulse=2400, actuation_range=180)
+        self.servo_tilt = servo.Servo(self.pwm.channels[1], min_pulse=500, max_pulse=2400, actuation_range=180)
+        
+        # Set servos to center position (90 degrees)
+        self.servo_pan.angle = 90
+        self.servo_tilt.angle = 90
+        
+        #Motor setup
         self.freq = 50
         self.motor_in1_pins = [15, 12, 11, 8]
         self.motor_in2_pins = [14, 13, 10, 9]
         self.motor_directions = [-1, -1, -1, -1]
 
-        pwm_motor = PCA9685(busio.I2C(SCL, SDA), address=0x5f)
+        pwm_motor = self.pwm
         pwm_motor.frequency = self.freq
 
         self.motors=[]
@@ -44,23 +58,33 @@ Motor interface.
         self.left_motor_speed = 0
         self.right_motor_speed = 0
 
-    #Common API
-    def map(self,x,in_min,in_max,out_min,out_max):
-        return (x - in_min)/(in_max - in_min) *(out_max - out_min) +out_min
     
     #Common API
     def stop(self):
         for m in self.motors:
             m.throttle = 0
-        
+
     #Common API
     def set_cam_pan_angle(self, angle):
-        pass  # Placeholder for camera pan control
+        """Set camera pan angle (0-180 degrees)"""
+        if angle < 0:
+            angle = 0
+        elif angle > 180:
+            angle = 180
+        self.servo_pan.angle = angle
     
     #Common API
     def set_cam_tilt_angle(self, angle):
-        pass  # Placeholder for camera tilt control
+        """Set camera tilt angle (0-180 degrees)"""
+        if angle < 0:
+            angle = 0
+        elif angle > 180:
+            angle = 180
+        self.servo_tilt.angle = angle
     
+    def _map(self,x,in_min,in_max,out_min,out_max):
+        return (x - in_min)/(in_max - in_min) *(out_max - out_min) +out_min
+
     #Common API
     def update_motor(self):
     # channel,1~4:M1~M4
@@ -71,7 +95,7 @@ Motor interface.
             elif motor_speed < -100:
                 motor_speed = -100
 
-            speed = map(motor_speed, 0, 100, 0, 1.0)
+            speed = self._map(motor_speed, 0, 100, 0, 1.0)
             self.motors[i].throttle = speed if motor_speed >= 0 else -speed 
         
     #Common API
@@ -97,7 +121,7 @@ Motor interface.
                     self.motor_speeds = [speed, -speed, speed, -speed]
                 elif turn == 'right': 	# right
                     self.motor_speeds = [-speed, speed, -speed, speed]
-                elif turn == "forward"					# forward  (mid)
+                elif turn == "forward":					# forward  (mid)
                     self.motor_speeds = [speed, speed, speed, speed]
                 elif turn == 'backward-left': 	# left backward
                     self.motor_speeds = [0, -speed, 0, -speed]
@@ -107,23 +131,3 @@ Motor interface.
                     self.motor_speeds = [-speed, -speed, -speed, -speed]
                 else: 
                     self.motor_speeds = [0, 0, 0, 0]
-
-def destroy():
-    motorStop()
-    pwm_motor.deinit()
-
-
-if __name__ == '__main__':
-    try:
-        speed_set = 20
-        setup()
-        move(speed_set, -1, 'no', 0.8)
-        time.sleep(3)
-        motorStop()
-        time.sleep(1)
-        move(speed_set, 1, 'no', 0.8)
-        time.sleep(3)
-        motorStop()
-    except KeyboardInterrupt:
-        destroy()
-
