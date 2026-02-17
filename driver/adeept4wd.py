@@ -9,7 +9,6 @@ from board import SCL, SDA
 import busio
 from adafruit_pca9685 import PCA9685
 from adafruit_motor import motor
-from lib import Motor
 
 class Adeept4WD:
     '''
@@ -22,18 +21,20 @@ Motor interface.
 '''
     def __init__(self):
         self.freq = 50
-        self.motor_in1_pins = [15, 12, 11, 8]
-        self.motor_in2_pins = [14, 13, 10, 9]
-        self.motor_directions = [-1, -1, -1, -1]
+        #self.motor_in1_pins = [15, 12, 11, 8]
+        #self.motor_in2_pins = [14, 13, 10, 9]
+        self.motor_in1_pins = [11,8,15,12]
+        self.motor_in2_pins = [10,9,14,13]
+        self.motor_directions = [-1, 1, 1, -1]
 
         pwm_motor = PCA9685(busio.I2C(SCL, SDA), address=0x5f)
         pwm_motor.frequency = self.freq
 
         self.motors=[]
         for in1, in2 in zip(self.motor_in1_pins, self.motor_in2_pins):
-            motor = motor.DCMotor(pwm_motor.channels[in1], pwm_motor.channels[in2])
-            motor.decay_mode = motor.SLOW_DECAY
-            self.motors.append(motor)
+            m = motor.DCMotor(pwm_motor.channels[in1], pwm_motor.channels[in2])
+            m.decay_mode = motor.SLOW_DECAY
+            self.motors.append(m)
         
         self.motor_speeds = [0, 0, 0, 0] #Integer values from -100 to 100
         
@@ -65,14 +66,14 @@ Motor interface.
     def update_motor(self):
     # channel,1~4:M1~M4
         for i in range(4):
-            motor_speed = self.motor_speeds[i]
+            motor_speed = self.motor_speeds[i] * self.motor_directions[i]
             if motor_speed > 100:
                 motor_speed = 100
             elif motor_speed < -100:
                 motor_speed = -100
 
-            speed = map(motor_speed, 0, 100, 0, 1.0)
-            self.motors[i].throttle = speed if motor_speed >= 0 else -speed 
+            speed = self.map(motor_speed, 0, 100, 0, 1.0)
+            self.motors[i].throttle = speed 
         
     #Common API
     def turn(self, angle):
@@ -97,7 +98,7 @@ Motor interface.
                     self.motor_speeds = [speed, -speed, speed, -speed]
                 elif turn == 'right': 	# right
                     self.motor_speeds = [-speed, speed, -speed, speed]
-                elif turn == "forward"					# forward  (mid)
+                elif turn == "forward":					# forward  (mid)
                     self.motor_speeds = [speed, speed, speed, speed]
                 elif turn == 'backward-left': 	# left backward
                     self.motor_speeds = [0, -speed, 0, -speed]
@@ -114,16 +115,13 @@ def destroy():
 
 
 if __name__ == '__main__':
-    try:
-        speed_set = 20
-        setup()
-        move(speed_set, -1, 'no', 0.8)
-        time.sleep(3)
-        motorStop()
-        time.sleep(1)
-        move(speed_set, 1, 'no', 0.8)
-        time.sleep(3)
-        motorStop()
-    except KeyboardInterrupt:
-        destroy()
+    car = Adeept4WD()
+    #Test motor 1 -4 
+    for i in range(4):
+        car.motor_speeds = [0,0,0,0]
+        car.motor_speeds[i] = 100
+        car.update_motor()
+        input(f"Testing motor {i}")
+    car.stop()
 
+    #Test Camera 
