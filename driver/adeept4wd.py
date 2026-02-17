@@ -9,7 +9,6 @@ from board import SCL, SDA
 import busio
 from adafruit_pca9685 import PCA9685
 from adafruit_motor import motor, servo
-from lib import Motor
 
 class Adeept4WD:
     '''
@@ -31,8 +30,10 @@ Motor interface.
         self.servo_tilt = servo.Servo(self.pwm.channels[1], min_pulse=500, max_pulse=2400, actuation_range=180)
         
         # Set servos to center position (90 degrees)
-        self.servo_pan.angle = 90
-        self.servo_tilt.angle = 90
+        self.SERVO_OFFSET_PAN=87
+        self.SERVO_OFFSET_TILT=90
+        self.set_cam_pan_angle(0)
+        self.set_cam_tilt_angle(0)
         
         #Motor setup
         self.freq = 50
@@ -69,15 +70,17 @@ Motor interface.
     #Common API
     def set_cam_pan_angle(self, angle):
         """Set camera pan angle (0-180 degrees)"""
+        angle += self.SERVO_OFFSET_PAN
         if angle < 0:
             angle = 0
         elif angle > 180:
             angle = 180
-        self.servo_pan.angle = angle
+        self.servo_pan.angle = angle 
     
     #Common API
     def set_cam_tilt_angle(self, angle):
         """Set camera tilt angle (0-180 degrees)"""
+        angle += self.SERVO_OFFSET_TILT
         if angle < 0:
             angle = 0
         elif angle > 180:
@@ -97,7 +100,7 @@ Motor interface.
             elif motor_speed < -100:
                 motor_speed = -100
 
-            speed = self.map(motor_speed, 0, 100, 0, 1.0)
+            speed = self._map(motor_speed, 0, 100, 0, 1.0)
             self.motors[i].throttle = speed 
         
     #Common API
@@ -118,6 +121,7 @@ Motor interface.
                 elif turn == 'forward-left': 	# left forward
                     self.motor_speeds = [speed, 0, speed, 0]
                 elif turn == 'forward-right': 	# right forward
+
                     self.motor_speeds = [0, speed, 0, speed]
                 elif turn == 'left': 	# left
                     self.motor_speeds = [speed, -speed, speed, -speed]
@@ -145,4 +149,30 @@ if __name__ == '__main__':
         input(f"Testing motor {i}")
     car.stop()
 
-    #Test Camera 
+    #Test Camera servos
+    car.set_cam_pan_angle(0)
+    car.set_cam_tilt_angle(0)
+
+    from time import sleep
+    for i in range(0,-95,-5):
+        car.set_cam_pan_angle(i)
+        sleep(0.02)
+    for i in range(-90,95,5):
+        car.set_cam_pan_angle(i)
+        sleep(0.02)
+    for i in range(90,-5,-5):
+        car.set_cam_pan_angle(i)
+        sleep(0.02)
+
+    for i in range(0,-35,-5):
+        car.set_cam_tilt_angle(i)
+        sleep(0.02)
+    for i in range(-30,35,5):
+        car.set_cam_tilt_angle(i)
+        sleep(0.02)
+    for i in range(30,-5,-5):
+        car.set_cam_tilt_angle(i)
+        sleep(0.02)
+
+
+
