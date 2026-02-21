@@ -39,9 +39,9 @@ Motor interface.
         self.freq = 50
         #self.motor_in1_pins = [15, 12, 11, 8]
         #self.motor_in2_pins = [14, 13, 10, 9]
-        self.motor_in1_pins = [11,8,15,12]
-        self.motor_in2_pins = [10,9,14,13]
-        self.motor_directions = [-1, 1, 1, -1]
+        self.motor_in1_pins = [11,8,12,15]
+        self.motor_in2_pins = [10,9,13,14]
+        self.motor_directions = [-1, 1, -1, 1]
 
         pwm_motor = self.pwm
         pwm_motor.frequency = self.freq
@@ -122,26 +122,25 @@ Motor interface.
         #eg: move(100, 1, "no")--->forward
         #    move(100, 1, "left")---> left forward
         #speed:0~100. direction:1/-1. turn: "left", "right", "no".
-                if turn == 'rotate-left': 		# rotate left
+                if turn == 'rotate-left' or turn=="rl": 		# rotate left
                     self.motor_speeds = [-speed, -speed, speed, speed]
-                elif turn == 'rotate-right': 	# rotate right
+                elif turn == 'rotate-right' or turn=="rr": 	# rotate right
                     self.motor_speeds = [speed, speed, -speed, -speed]
-                elif turn == 'forward-left': 	# left forward
-                    self.motor_speeds = [speed, 0, speed, 0]
-                elif turn == 'forward-right': 	# right forward
-
+                elif turn == 'forward-left' or turn=="fl": 	# left forward
                     self.motor_speeds = [0, speed, 0, speed]
-                elif turn == 'left': 	# left
-                    self.motor_speeds = [speed, -speed, speed, -speed]
-                elif turn == 'right': 	# right
+                elif turn == 'forward-right' or turn=="fr": 	# right forward
+                    self.motor_speeds = [speed, 0, speed, 0]
+                elif turn == 'left' or turn=="l": 	# left
                     self.motor_speeds = [-speed, speed, -speed, speed]
-                elif turn == "forward":					# forward  (mid)
+                elif turn == 'right' or turn=="r": 	# right
+                    self.motor_speeds = [speed, -speed, speed, -speed]
+                elif turn == "forward" or turn=="f":					# forward  (mid)
                     self.motor_speeds = [speed, speed, speed, speed]
-                elif turn == 'backward-left': 	# left backward
+                elif turn == 'backward-left' or turn=="bl": 	# left backward
                     self.motor_speeds = [0, -speed, 0, -speed]
-                elif turn == 'backward-right': 	# right backward
+                elif turn == 'backward-right' or turn=="br": 	# right backward
                     self.motor_speeds = [-speed, 0, -speed, 0]
-                elif turn == "backward":				# backward (mid)
+                elif turn == "backward" or turn=="b":				# backward (mid)
                     self.motor_speeds = [-speed, -speed, -speed, -speed]
                 else: 
                     self.motor_speeds = [0, 0, 0, 0]
@@ -149,13 +148,13 @@ Motor interface.
 
 if __name__ == '__main__':
     car = Adeept4WD()
-    #Test motor 1 -4 
-    for i in range(4):
-        car.motor_speeds = [0,0,0,0]
-        car.motor_speeds[i] = 100
-        car.update_motor()
-        input(f"Testing motor {i}")
-    car.stop()
+    # #Test motor 1 -4 
+    # for i in range(4):
+    #     car.motor_speeds = [0,0,0,0]
+    #     car.motor_speeds[i] = 100
+    #     car.update_motor()
+    #     input(f"Testing motor {i}")
+    # car.stop()
 
     #Test Camera servos
     car.set_cam_pan_angle(0)
@@ -183,4 +182,9 @@ if __name__ == '__main__':
         sleep(0.02)
 
 
+    for turn in ["forward", "backward", "rotate-left", "rotate-right", "left", "right", "forward-left", "forward-right", "backward-left", "backward-right"]:
+        car.move(50, turn)
+        car.update_motor()
+        input(f"Testing move {turn}")
+    car.stop()
 
