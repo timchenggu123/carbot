@@ -92,7 +92,15 @@ Motor interface.
 
     #Common API
     def update_motor(self):
-    # channel,1~4:M1~M4
+        #for legacy API compatibility
+        if self.left_motor_base_power > 0:
+            self.motor_speeds[0] = self.left_motor_base_power
+            self.motor_speeds[1] = self.left_motor_base_power
+        if self.right_motor_base_power > 0:
+            self.motor_speeds[2] = self.right_motor_base_powers
+            self.motor_speeds[3] = self.right_motor_base_power
+        
+        # channel,1~4:M1~M4
         for i in range(4):
             motor_speed = self.motor_speeds[i] * self.motor_directions[i]
             if motor_speed > 100:
