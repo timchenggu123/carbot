@@ -1,4 +1,4 @@
-from flask import Flask, Response, render_template, jsonify
+from flask import Flask, Response, render_template, jsonify, request
 import subprocess
 import signal
 import time
@@ -7,6 +7,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.io import AsyncFrameFIFO, AsyncTextFIFO
 from threading import Lock
+from driver.adeept4wd import Adeept4WD
+car = Adeept4WD()
 
 app = Flask(__name__)
 
@@ -77,6 +79,23 @@ def stop_detection():
                 detection_process.kill()
             detection_process = None
             print("Detection worker stopped")
+
+def car_move(direction):
+    """Move the car in the specified direction"""
+    car.move(100, direction)
+    car.update_motor()
+    
+def car_stop():
+    """Stop the car"""
+    car.stop()
+
+def car_pan(angle):
+    """Pan the car's camera to the specified angle"""
+    car.set_cam_pan_angle(angle)
+
+def car_tilt(angle):
+    """Tilt the car's camera to the specified angle"""
+    car.set_cam_tilt_angle(angle)
 
 def gen_frames():
     """Generate frames from async FIFO for HTTP streaming"""
@@ -182,6 +201,28 @@ def detection_logs():
 def detection_video_feed():
     return Response(gen_detection_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/control/move/<direction>')
+def control_move(direction):
+    car_move(direction)
+    return f"Moving {direction}"
+
+@app.route('/control/stop')
+def control_stop():
+    car_stop()
+    return "Car stopped"
+
+@app.route('/control/pan')
+def control_pan():
+    angle = request.args.get('angle', 0, type=int)
+    car_pan(angle)
+    return f"Camera pan set to {angle} degrees"
+
+@app.route('/control/tilt')
+def control_tilt():
+    angle = request.args.get('angle', 0, type=int)
+    car_tilt(angle)
+    return f"Camera tilt set to {angle} degrees"
 
 if __name__ == '__main__':
     import atexit
