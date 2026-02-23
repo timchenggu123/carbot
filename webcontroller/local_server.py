@@ -12,25 +12,28 @@ car = Adeept4WD()
 
 app = Flask(__name__)
 
-# Global FIFO channels and camera process
+# Global FIFO channels
 frame_fifo = AsyncFrameFIFO("camera")
 text_fifo = AsyncTextFIFO("camera")
-# Detection frame FIFO (was missing)
 detection_frame_fifo = AsyncFrameFIFO("detection")
-camera_process = None
-logs_dict = {}
-
-# Add detection worker support
-detection_process = None
 detection_text_fifo = AsyncTextFIFO("detection")
-_detection_lock = Lock()
+test_routine_text_fifo = AsyncTextFIFO("test_routine_worker")
 
 # Start reading tasks
 frame_fifo.start_reading()
 text_fifo.start_reading()
 detection_text_fifo.start_reading()
-# Start detection frame reader
 detection_frame_fifo.start_reading()
+test_routine_text_fifo.start_reading()
+
+#Register global variables
+detection_process = None
+_detection_lock = Lock()
+
+camera_process = None
+logs_dict = {}
+
+DEMOS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'demos'))
 
 def start_camera():
     """Start the camera worker process"""
@@ -40,7 +43,7 @@ def start_camera():
     
     # Start the camera worker (async FIFO mode)
     camera_process = subprocess.Popen(
-        ["python3", "demos/camera_worker.py"]
+        ["python3", os.path.join(DEMOS_DIR, "camera_worker.py")]
     )
     print("Camera worker started (async FIFO mode)")
 
@@ -64,7 +67,7 @@ def start_detection():
     with _detection_lock:
         if detection_process is not None:
             return
-        detection_process = subprocess.Popen(["python3", "demos/detection_worker.py"])
+        detection_process = subprocess.Popen(["python3", os.path.join(DEMOS_DIR, "detection_worker.py")])
         print("Detection worker started")
 
 def stop_detection():
@@ -224,6 +227,30 @@ def control_tilt():
     car_tilt(angle)
     return f"Camera tilt set to {angle} degrees"
 
+@app.route('/test_routine')
+def test_routine():
+    """Run the test routine worker"""
+    # Start the test routine worker (synchronous for simplicity)
+    subprocess.Popen(["python3", os.path.join(DEMOS_DIR, "test_routine_worker.py")])
+    return render_template("test_routine.html")
+
+@app.route('/test_routine/logs')
+def test_routine_logs():
+    """Get recent test routine logs from async text FIFO"""
+    global logs_dict
+    logs = logs_dict.get("test_routine_worker", [])
+    # Read available messages (non-blocking)
+    for _ in range(50):  # read up to 50 lines
+        try:
+            text = test_routine_text_fifo.readline(timeout=0.001)
+            if text is None:
+                break
+            logs.append(text)
+        except Exception:
+            break
+    logs_dict["test_routine_worker"] = logs[-500:]  # Keep last 500 logs
+    return jsonify({"logs": logs})
+
 if __name__ == '__main__':
     import atexit
     
@@ -235,7 +262,7 @@ if __name__ == '__main__':
         text_fifo.close()
         detection_text_fifo.close()
         detection_frame_fifo.close()
-    
+        test_routine_text_fifo.close()
     atexit.register(cleanup)
     
     try:
