@@ -154,13 +154,16 @@ class AsyncTextFIFO:
             return None
         return None
 
+    def write_line_sync(self, line: str):
+        """Synchronous wrapper to write a line to the FIFO."""
+        asyncio.run(self.write_line(line))
+
     def readline(self, timeout: float = 1.0):
         """Get a line from the queue with a timeout."""
         try:
             return self.text_queue.get(timeout=timeout)
         except queue.Empty:
             return None
-
     
     def start_reading(self):
         """Start the asynchronous line reading task."""

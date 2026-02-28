@@ -1,30 +1,30 @@
 {% extends "base.html" %}
 {% block content %}
-<h3>Test Routine</h3>
+<h3>Obstacle Avoidance</h3>
 
 <div style="margin-top: 20px;">
-    <h4>Test Routine Logs</h4>
-    <textarea id="testRoutineLogs" readonly style="width: 100%; max-width: 1000px; height: 400px; font-family: monospace; font-size: 12px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 10px; resize: vertical;">
+    <h4>Obstacle Avoidance Logs</h4>
+    <textarea id="obstacleLogs" readonly style="width: 100%; max-width: 1000px; height: 400px; font-family: monospace; font-size: 12px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 10px; resize: vertical;">
 Loading logs...
     </textarea>
 </div>
 
 <div style="margin-top: 20px;">
-    <a href="/" onclick="stopTestRoutine()" class="button">⬅ Back</a>
+    <a href="/" onclick="stopObstacle()" class="button">⬅ Back</a>
 </div>
 
 <script>
-    // Stop test routine when leaving or refreshing the page
-    function stopTestRoutine() {
-        navigator.sendBeacon('/test_routine/stop');
+    // Stop obstacle worker when leaving or refreshing the page
+    function stopObstacle() {
+        navigator.sendBeacon('/obstacle/stop');
     }
 
-    // Update test routine logs
+    // Update obstacle logs
     function updateLogs() {
-        fetch('/test_routine/logs')
+        fetch('/obstacle/logs')
             .then(response => response.json())
             .then(data => {
-                const logsTextarea = document.getElementById('testRoutineLogs');
+                const logsTextarea = document.getElementById('obstacleLogs');
                 if (data.logs && data.logs.length > 0) {
                     logsTextarea.value = data.logs.join('\n');
                     // Auto-scroll to bottom
@@ -35,7 +35,7 @@ Loading logs...
             })
             .catch(error => {
                 console.error('Error fetching logs:', error);
-                const logsTextarea = document.getElementById('testRoutineLogs');
+                const logsTextarea = document.getElementById('obstacleLogs');
                 if (logsTextarea.value === 'Loading logs...') {
                     logsTextarea.value = 'Error loading logs';
                 }
@@ -48,6 +48,6 @@ Loading logs...
     // Load logs immediately when page loads
     updateLogs();
 
-    window.addEventListener('beforeunload', stopTestRoutine);
+    window.addEventListener('beforeunload', stopObstacle);
 </script>
 {% endblock %}

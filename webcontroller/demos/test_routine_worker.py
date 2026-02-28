@@ -5,8 +5,21 @@ from utils.io import AsyncTextFIFO
 from time import sleep
 from sensors.camera import Camera
 import asyncio
+import signal
 
 text_fifo = AsyncTextFIFO("test_routine_worker")
+car = None
+
+def signal_handler(signum, frame):
+    """Handle termination signals gracefully"""
+    print(f"Received signal {signum}, stopping car...")
+    if car is not None:
+        car.stop()
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 async def test_camera_pan_tilt(car, text_fifo):
     await text_fifo.write_line("Testing camera pan and tilt...")
@@ -40,6 +53,7 @@ async def test_motor_control(car, text_fifo):
     car.stop()
 
 async def main():
+    global car
     await text_fifo.write_line("Test routine worker starting...")
     await text_fifo.write_line("Initializing car...")
 

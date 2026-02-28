@@ -18,6 +18,7 @@ text_fifo = AsyncTextFIFO("camera")
 detection_frame_fifo = AsyncFrameFIFO("detection")
 detection_text_fifo = AsyncTextFIFO("detection")
 test_routine_text_fifo = AsyncTextFIFO("test_routine_worker")
+obstacle_text_fifo = AsyncTextFIFO("obstacle_worker")
 
 # Start reading tasks
 frame_fifo.start_reading()
@@ -25,12 +26,15 @@ text_fifo.start_reading()
 detection_text_fifo.start_reading()
 detection_frame_fifo.start_reading()
 test_routine_text_fifo.start_reading()
+obstacle_text_fifo.start_reading()
 
 #Register global variables
 detection_process = None
 _detection_lock = Lock()
 
 camera_process = None
+obstacle_process = None
+test_routine_process = None
 logs_dict = {}
 
 DEMOS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'demos'))
@@ -82,6 +86,54 @@ def stop_detection():
                 detection_process.kill()
             detection_process = None
             print("Detection worker stopped")
+
+def start_obstacle():
+    """Start the obstacle worker process"""
+    global obstacle_process
+    if obstacle_process is not None:
+        return
+    obstacle_process = subprocess.Popen(["python3", os.path.join(DEMOS_DIR, "obstacle_worker.py")])
+    print("Obstacle worker started")
+
+def stop_obstacle():
+    """Stop the obstacle worker process"""
+    global obstacle_process, car
+    if obstacle_process:
+        obstacle_process.send_signal(signal.SIGTERM)
+        try:
+            obstacle_process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            obstacle_process.kill()
+        obstacle_process = None
+        print("Obstacle worker stopped")
+    
+    # Explicitly stop the car
+    if car is None:
+        car = Adeept4WD()
+    car.stop()
+    print("Car stopped")
+
+def start_test_routine():
+    """Start the test routine worker process"""
+    global test_routine_process
+    if test_routine_process is not None:
+        return
+    test_routine_process = subprocess.Popen(["python3", os.path.join(DEMOS_DIR, "test_routine_worker.py")])
+    print("Test routine worker started")
+
+def stop_test_routine():
+    """Stop the test routine worker process"""
+    global test_routine_process, car
+    if test_routine_process:
+        test_routine_process.send_signal(signal.SIGTERM)
+        try:
+            test_routine_process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            test_routine_process.kill()
+        test_routine_process = None
+        print("Test routine worker stopped")
+    
+    # Explicitly stop the car
 
 def car_move(direction):
     """Move the car in the specified direction"""
@@ -245,13 +297,17 @@ def control_tilt():
 @app.route('/test_routine')
 def test_routine():
     """Run the test routine worker"""
-    # Start the test routine worker (synchronous for simplicity)
     global car 
     if car is not None:
         car.stop()
         car = None
-    subprocess.Popen(["python3", os.path.join(DEMOS_DIR, "test_routine_worker.py")])
+    start_test_routine()
     return render_template("test_routine.html")
+
+@app.route('/test_routine/stop', methods=['GET', 'POST'])
+def test_routine_stop_route():
+    stop_test_routine()
+    return "Test routine worker stopped"
 
 @app.route('/test_routine/logs')
 def test_routine_logs():
@@ -270,6 +326,38 @@ def test_routine_logs():
     logs_dict["test_routine_worker"] = logs[-500:]  # Keep last 500 logs
     return jsonify({"logs": logs})
 
+@app.route('/obstacle')
+def obstacle_route():
+    """Run the obstacle avoidance worker"""
+    global car
+    if car is not None:
+        car.stop()
+        car = None
+    start_obstacle()
+    return render_template("obstacle.html")
+
+@app.route('/obstacle/stop', methods=['GET', 'POST'])
+def obstacle_stop_route():
+    stop_obstacle()
+    return "Obstacle worker stopped"
+
+@app.route('/obstacle/logs')
+def obstacle_logs():
+    """Get recent obstacle logs from async text FIFO"""
+    global logs_dict
+    logs = logs_dict.get("obstacle_worker", [])
+    # Read available messages (non-blocking)
+    for _ in range(50):  # read up to 50 lines
+        try:
+            text = obstacle_text_fifo.readline(timeout=0.001)
+            if text is None:
+                break
+            logs.append(text)
+        except Exception:
+            break
+    logs_dict["obstacle_worker"] = logs[-500:]  # Keep last 500 logs
+    return jsonify({"logs": logs})
+
 if __name__ == '__main__':
     import atexit
     
@@ -277,11 +365,14 @@ if __name__ == '__main__':
         """Cleanup when server shuts down"""
         stop_camera()
         stop_detection()
+        stop_obstacle()
+        stop_test_routine()
         frame_fifo.close()
         text_fifo.close()
         detection_text_fifo.close()
         detection_frame_fifo.close()
         test_routine_text_fifo.close()
+        obstacle_text_fifo.close()
     atexit.register(cleanup)
     
     try:

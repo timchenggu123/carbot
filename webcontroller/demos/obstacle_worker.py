@@ -2,9 +2,24 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/.." + "/..")
 from driver.adeept4wd import Adeept4WD
 from autopilot.autopilot import Autopilot, SensorInputs, Command
+from utils.io import AsyncTextFIFO
 from time import sleep
+import signal
 
-car = Adeept4WD()
+text_fifo = AsyncTextFIFO("obstacle_worker")
+car = None
+
+def signal_handler(signum, frame):
+    """Handle termination signals gracefully"""
+    print(f"Received signal {signum}, stopping car...")
+    if car is not None:
+        car.stop()
+    text_fifo.close()
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 class AutoDrivePilot(Autopilot):
     STATE_STRAFE_LEFT = 5
@@ -52,18 +67,21 @@ class AutoDrivePilot(Autopilot):
             self.d_threshold = self.D_THRESHOLD_BASE
             self.scan = self.quick_rotate_scan
             if self.check_obstacle():
+                text_fifo.write_line_sync(f"Obstacle detected at distance: {sensor_inputs.get_distance()}")
                 return self.scan()
             return self.cruise()
         elif self.state == self.STATE_SCANNING:
             if self.step >= self.num_steps:
                 self.step = 0
                 if self.max_dist < self.d_threshold:
+                    text_fifo.write_line_sync(f"Obstacle too close, backing up. d_threshold: {self.d_threshold}, max_dist: {self.max_dist}")
                     self.log(f"Obstacle too close, backing up, d_threshold: {self.d_threshold}, max_dist: {self.max_dist}")
                     self.increase_scan_threshold()
                     self.scan = self.full_rotate_scan
                     return self.back()
                 else:
                     print("!!!!!!!!!!", self.target_angle)
+                    text_fifo.write_line_sync(f"Scan complete. Target angle: {self.target_angle}")
                     if self.target_angle < 0: 
                         return self.parallel_scan("l")
                     else:
@@ -72,11 +90,13 @@ class AutoDrivePilot(Autopilot):
         elif self.state == self.STATE_STRAFE_RIGHT:
             if self.step >= self.num_steps:
                 self.step = 0
+                text_fifo.write_line_sync("Strafe right complete, resuming cruise")
                 return self.cruise()
             return self.parallel_scan("r")
         elif self.state == self.STATE_STRAFE_LEFT:
             if self.step >= self.num_steps:
                 self.step = 0
+                text_fifo.write_line_sync("Strafe left complete, resuming cruise")
                 return self.cruise()
             return self.parallel_scan("l")
         elif self.state == self.STATE_TURNING:
@@ -98,30 +118,44 @@ class AutoDrivePilot(Autopilot):
             self.scan()
 
 def main():
+    global car
     ap = AutoDrivePilot()
     sin = SensorInputs()
+    car = Adeept4WD()
     while True:
         sin.ultrasonic_distance = car.get_distance() #New version of vehicle does not use this
         sin.lidar_distance = 100 #Placeholder until we have lidar working
 
         cmd = ap.run(sin)
         speed, angle, pan, tilt, dir= cmd.speed, cmd.angle, cmd.pan, cmd.tilt, cmd.dir
-        print(cmd)
+        
+        # Log to FIFO
+        log_msg = f"State: {ap.state}, Speed: {speed}, Angle: {angle}, Dir: {dir}, Distance: {sin.ultrasonic_distance}"
+        text_fifo.write_line_sync(log_msg)
+        print(log_msg)
+        
         if angle != 0:
             car.turn(angle)
         else:
             car.move(speed, dir)
-        print(car.motor_speeds)
+        
+        # Log motor speeds
+        motor_log = f"Motor speeds: {car.motor_speeds}"
+        text_fifo.write_line_sync(motor_log)
+        print(motor_log)
+        
         car.update_motor()
 
         car.set_cam_pan_angle(pan)
         car.set_cam_tilt_angle(tilt)
-        # print(f"Speed: {speed}, Angle: {angle}, Distance: {sin.ultrasonic_distance}, State: {ap.state}")
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:    
-        print("error:%s" % e)
+        error_msg = f"Error: {e}"
+        text_fifo.write_line_sync(error_msg)
+        print(error_msg)
     finally:
-        car.stop()
+        if car is not None:
+            car.stop()
