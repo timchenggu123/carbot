@@ -1,14 +1,13 @@
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 from driver.picarx import Picarx
-from autopilot.autopilot import Autopilot, SensorInputs
+from autopilot.autopilot import Autopilot, SensorInputs, Command
 from sensors import lidar
 from time import sleep
 
 px = Picarx()
 
 class AutoDrivePilot(Autopilot):
-
 
     def run_step(self, sensor_inputs: SensorInputs = None):
         if sensor_inputs is None:

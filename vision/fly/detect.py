@@ -1,32 +1,56 @@
 from ultralytics import YOLO
 import cv2
 import os
+import torch
+import numpy as np
 
 class FlyYOLO():
-    def __init__(self, model_path=None):
+    def __init__(self, model_path=None, device=None, use_fp16=True):
         """
         Initialize the YOLO model for object detection.
         
         Args:
             model_path (str): Path to the YOLO model weights. If None, uses default path.
+            device (str): Device to use for inference ('cuda', 'cpu', or None for auto). Default: auto-detect GPU.
+            use_fp16 (bool): Enable half-precision (FP16) inference for faster performance. Default: True.
         """
         base_path = os.path.dirname(os.path.abspath(__file__))
         
         # Load your trained model
         if model_path is None:
             model_path = os.path.join(base_path, "model/best.pt")
+        
+        # Auto-detect device if not specified
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
         self.model = YOLO(model_path)
+        self.device = device
+        self.use_fp16 = use_fp16 and device == 'cuda'  # FP16 only works on CUDA
+        
+        # Warm up the model with a dummy inference
+        try:
+            dummy_img = np.zeros((480, 640, 3), dtype=np.uint8)
+            self.model(dummy_img, conf=0.5, device=self.device, half=self.use_fp16, imgsz=416, verbose=False)
+        except Exception as e:
+            print(f"Warning: Model warmup failed: {e}. Continuing anyway...")
 
-    def get_detection_centers(self, image, model_path=None):
+    def get_detection_centers(self, image, conf=0.5, imgsz=416):
         """
         Detect objects and return center coordinates ranked by confidence.
         
+        Args:
+            image: Input image (NumPy array)
+            conf (float): Confidence threshold. Default: 0.5
+            imgsz (int): Inference image size. Smaller = faster. Default: 416
+            
         Returns:
-            List of tuples: [(x, y, confidence), ...] sorted by confidence (highest first)
+            List of tuples: [(x, y, confidence, x1, y1, x2, y2), ...] sorted by confidence (highest first)
         """
         
-        # Run prediction
-        results = self.model(image, conf=0.6, iou=0.8, max_det=100, save=False)
+        # Run prediction with optimizations
+        results = self.model(image, conf=conf, iou=0.45, max_det=30, device=self.device, 
+                            half=self.use_fp16, imgsz=imgsz, verbose=False)
         
         # Extract center coordinates and confidence scores
         detections = []
@@ -51,23 +75,24 @@ class FlyYOLO():
         
         return detections
 
-    def get_detection_centers_batch(self, images):
+    def get_detection_centers_batch(self, images, conf=0.5, imgsz=416):
         """
         Detect objects in a batch of images and return center coordinates ranked by confidence.
         
         Args:
             images (list): List of images to process
+            conf (float): Confidence threshold. Default: 0.5
+            imgsz (int): Inference image size. Smaller = faster. Default: 416
             
         Returns:
-            List of lists: [[(x, y, confidence), ...], ...] for each image
+            List of lists: [[(x, y, confidence, x1, y1, x2, y2), ...], ...] for each image
         """
         if not images:
             return []
         
-        print(f"Processing batch of {len(images)} images...")
-        
-        # Run prediction on batch
-        results = self.model(images, conf=0.6, iou=0.8, max_det=100, save=False)
+        # Run prediction on batch with optimizations
+        results = self.model(images, conf=conf, iou=0.45, max_det=30, device=self.device,
+                            half=self.use_fp16, imgsz=imgsz, verbose=False)
         
         batch_detections = []
         for r in results:

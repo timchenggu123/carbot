@@ -9,6 +9,8 @@ from board import SCL, SDA
 import busio
 from adafruit_pca9685 import PCA9685
 from adafruit_motor import motor, servo
+from gpiozero import DistanceSensor
+from time import sleep
 
 class Adeept4WD:
     '''
@@ -34,6 +36,10 @@ Motor interface.
         self.SERVO_OFFSET_TILT=90
         self.set_cam_pan_angle(0)
         self.set_cam_tilt_angle(0)
+
+        # Set ultrasonic
+        self.ultrasonic_tr = 23
+        self.ultrasonic_ec = 24
         
         #Motor setup
         self.freq = 50
@@ -114,9 +120,9 @@ Motor interface.
     #Common API
     def turn(self, angle):
         if angle > 0:
-            self.move(100, 'right')
+            self.move(100, 'rr')
         else:
-            self.move(100, 'left')
+            self.move(100, 'rl')
     
     def move(self, speed, turn, radius=0.6):   # 0 < radius <= 1  
         #eg: move(100, 1, "no")--->forward
@@ -145,6 +151,9 @@ Motor interface.
                 else: 
                     self.motor_speeds = [0, 0, 0, 0]
 
+    def get_distance(self):
+        ultrasonic = DistanceSensor(echo=self.ultrasonic_ec, trigger=self.ultrasonic_tr, max_distance=2.0)
+        return ultrasonic.distance*100  # return distance in cm
 
 if __name__ == '__main__':
     car = Adeept4WD()
@@ -187,4 +196,6 @@ if __name__ == '__main__':
         car.update_motor()
         input(f"Testing move {turn}")
     car.stop()
+    
+    
 

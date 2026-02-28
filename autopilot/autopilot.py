@@ -11,8 +11,8 @@ class Command:
     angle: int = 0
     pan: int = 0
     tilt: int = 0
+    dir: str = "forward"
 
-@dataclass
 class SensorInputs:
     """
     Class to represent sensor inputs for the autopilot.
@@ -22,6 +22,15 @@ class SensorInputs:
     lidar_distance: float = float('inf')
     camera_image: bytes = b''  # Placeholder for camera image data
 
+    def get_distance(self):
+        return self.ultrasonic_distance
+    
+    def get_lidar_distance(self):
+        return self.lidar_distance
+    
+    def get_ultrasonic_distance(self):
+        return self.ultrasonic_distance
+
 class Autopilot:
     """
     Class for autopilot functionality.
@@ -29,14 +38,15 @@ class Autopilot:
     It should be agnostic to the specific vehicle implementation,
     allowing for different vehicles to inherit and implement the methods.
     """
-    D_THREASHOLD_CRITICAL = 15 # Critical distance threshold for obstacle avoidance
+    D_THRESHOLD_CRITICAL = 15 # Critical distance threshold for obstacle avoidance
     D_THRESHOLD_BASE =35 # Distance threshold for obstacle avoidance
     D_THRESHOLD_INC = 20 # Distance threshold for backing
     FREQ = 0.05 # Frequency autopilot should run at
     STATE_SHIFT_PAUSE = 1.0  # Time in seconds to pause when shifting states
 
     #Vehicle specific constants
-    TURN_TIME = 3.0  # Time in seconds to complete a 360 degree
+    #ROTATE_TIME = 3.0  # Time in seconds to complete a 360 degree
+    ROTATE_TIME = 1.7
     CRUISE_SPEED = 2.0 # Time in seconds per meter at 100 cruise speed
 
     # States for the autopilot
@@ -110,7 +120,7 @@ class Autopilot:
         """
         if self.sensor_inputs is None:
             raise ValueError("Sensor inputs must be provided")
-        return self.sensor_inputs.lidar_distance < self.d_threshold
+        return self.sensor_inputs.get_distance() < self.d_threshold
     
     def check_obstacle_critical(self):
         """
@@ -119,7 +129,7 @@ class Autopilot:
     """
         if self.sensor_inputs is None:
             raise ValueError("Sensor inputs must be provided")
-        return self.sensor_inputs.lidar_distance < self.D_THREASHOLD_CRITICAL
+        return self.sensor_inputs.get_distance() < self.D_THRESHOLD_CRITICAL
     
     def quick_rotate_scan(self):
         """
@@ -131,11 +141,11 @@ class Autopilot:
         if self.step == 0:
             #randomly choose -1 and 1 to start turning left or right
             self.max_dist = -1
-            self.num_steps = 3 * 60 / 360 // self.FREQ # scanning for 60 degrees
+            self.num_steps = self.ROTATE_TIME * 60 / 360 // self.FREQ # scanning for 60 degrees
             
         # record larges distance
-        if self.sensor_inputs.lidar_distance > self.max_dist:
-            self.max_dist = self.sensor_inputs.lidar_distance
+        if self.sensor_inputs.get_distance() > self.max_dist:
+            self.max_dist = self.sensor_inputs.get_distance()
             self.target_angle = self.step * 360 / self.num_steps
 
         if self.max_dist > 100:
@@ -159,11 +169,11 @@ class Autopilot:
         if self.step == 0:
             #randomly choose -1 and 1 to start turning left or right
             self.max_dist = -1
-            self.num_steps = 3 // self.FREQ # 3 seconds of scanning
+            self.num_steps = self.ROTATE_TIME // self.FREQ # 3 seconds of scanning
             
         # record larges distance
-        if self.sensor_inputs.lidar_distance > self.max_dist:
-            self.max_dist = self.sensor_inputs.lidar_distance
+        if self.sensor_inputs.get_distance() > self.max_dist:
+            self.max_dist = self.sensor_inputs.get_distance()
             self.target_angle = self.step * 360 / self.num_steps
 
         if self.max_dist > 100:
@@ -189,8 +199,8 @@ class Autopilot:
             self.num_steps = 60
             
         # Record largest distance
-        if self.sensor_inputs.lidar_distance > self.max_dist:
-            self.max_dist = self.sensor_inputs.lidar_distance
+        if self.sensor_inputs.get_lidar_distance() > self.max_dist:
+            self.max_dist = self.sensor_inputs.get_lidar_distance()
             self.target_angle = self.step - 30
 
         # #Early exit if max distance is too high
@@ -215,7 +225,7 @@ class Autopilot:
             self.change_state(self.STATE_TURNING, self.init_turn, angle)
         self.dir = 1 if angle > 0 else -1
         angle = abs(angle)
-        self.num_steps = int(self.TURN_TIME / self.FREQ * angle / 360)  # Number of steps to complete the turn
+        self.num_steps = int(self.ROTATE_TIME / self.FREQ * angle / 360)  # Number of steps to complete the turn
         print(f"Turning {'right' if self.dir == 1 else 'left'} for {self.num_steps} steps")
         return self.turn()
 
@@ -244,7 +254,7 @@ class Autopilot:
             self.log("Critical obstacle detected, backing up")
             return self.back()
         self.step += 1
-        return Command(self.base_speed, -1, 0, -5)
+        return Command(self.base_speed, 0, 0, 0)
     
     def get_cruise_dist(self):
         if self.state != self.STATE_CRUISING:
