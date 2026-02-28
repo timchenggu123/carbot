@@ -8,7 +8,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.io import AsyncFrameFIFO, AsyncTextFIFO
 from threading import Lock
 from driver.adeept4wd import Adeept4WD
-car = Adeept4WD()
+car = None
 
 app = Flask(__name__)
 
@@ -85,19 +85,30 @@ def stop_detection():
 
 def car_move(direction):
     """Move the car in the specified direction"""
+    global car
+    if car is None:
+        car = Adeept4WD()
     car.move(100, direction)
     car.update_motor()
     
 def car_stop():
     """Stop the car"""
-    car.stop()
+    global car
+    if car is not None:
+        car.stop()
 
 def car_pan(angle):
     """Pan the car's camera to the specified angle"""
+    global car
+    if car is None:
+        car = Adeept4WD()
     car.set_cam_pan_angle(angle)
 
 def car_tilt(angle):
     """Tilt the car's camera to the specified angle"""
+    global car
+    if car is None:
+        car = Adeept4WD()
     car.set_cam_tilt_angle(angle)
 
 def gen_frames():
@@ -155,6 +166,10 @@ def stop_camera_route():
 
 @app.route('/detection')
 def detection_route():
+    global car
+    if car is not None:
+        car.stop()
+        car = None
     start_detection()
     return render_template("detection.html")
 
@@ -231,6 +246,10 @@ def control_tilt():
 def test_routine():
     """Run the test routine worker"""
     # Start the test routine worker (synchronous for simplicity)
+    global car 
+    if car is not None:
+        car.stop()
+        car = None
     subprocess.Popen(["python3", os.path.join(DEMOS_DIR, "test_routine_worker.py")])
     return render_template("test_routine.html")
 

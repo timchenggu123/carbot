@@ -9,7 +9,7 @@ car = Adeept4WD()
 class AutoDrivePilot(Autopilot):
     STATE_STRAFE_LEFT = 5
     STATE_STRAFE_RIGHT = 6
-    STRAFE_STEPS = 20
+    STRAFE_STEPS = 200
     PARALLEL_SCAN_THRESHOLD = 80
     
     def parallel_scan(self, direction="r"):
@@ -32,8 +32,8 @@ class AutoDrivePilot(Autopilot):
         #record distance
         self.distances.append(self.sensor_inputs.get_distance())
 
-        # If the past 5 distances are all above the parallel scan threshold, we can assume the obstacle is not in front and skip the rest of the scan
-        if len(self.distances) >= 5 and all(d > self.PARALLEL_SCAN_THRESHOLD for d in self.distances[-5:]):
+        # If the past 20 distances are all above the parallel scan threshold, we can assume the obstacle is not in front and skip the rest of the scan
+        if len(self.distances) >= 20 and all(d > self.PARALLEL_SCAN_THRESHOLD for d in self.distances[-20:]):
             self.step = self.num_steps
             return Command(self.base_speed, 0, 0, 0, dir="right" if direction == "r" else "left")
         # Strafe and increase progress

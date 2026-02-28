@@ -56,6 +56,9 @@ class Autopilot:
     STATE_SCANNING = 2
     STATE_TURNING = 3
     STATE_BACKING = 4
+    
+    #Quick rotate scan
+    QUICK_SCAN_ANGLE = 60
 
     def __init__(self):
         self.register_states() 
@@ -72,6 +75,8 @@ class Autopilot:
         self.target_angle = 0
         self.scan = self.pan_tilt_scan
         self.function_queue = [self.cruise]  # Queue of functions to execute in order
+        self.epoch_time = time.time()
+        self.last_time = self.epoch_time
     
     def register_states(self):
         """
@@ -99,8 +104,14 @@ class Autopilot:
         self.change_state_hook()
 
     def sleep(self):
-        time.sleep(self.FREQ)  # Sleep for the frequency duration
-
+        sleep_duration = self.last_time + self.FREQ - time.time()
+        if sleep_duration > 0:
+            time.sleep(sleep_duration)  # Sleep for the remaining duration
+            self.last_time = time.time()
+        else:
+            self.last_time += self.FREQ
+            print(f"Warning: Autopilot loop is running behind schedule by {-sleep_duration:.2f} seconds")
+            
     def run(self, sensor_inputs: SensorInputs = None):
         """
         Run the autopilot logic based on the current state and sensor inputs.
@@ -141,7 +152,7 @@ class Autopilot:
         if self.step == 0:
             #randomly choose -1 and 1 to start turning left or right
             self.max_dist = -1
-            self.num_steps = self.ROTATE_TIME * 60 / 360 // self.FREQ # scanning for 60 degrees
+            self.num_steps = self.ROTATE_TIME * self.QUICK_SCAN_ANGLE * 4 / 360 // self.FREQ # scanning for 60 degrees
             
         # record larges distance
         if self.sensor_inputs.get_distance() > self.max_dist:
@@ -151,12 +162,20 @@ class Autopilot:
         if self.max_dist > 100:
             self.step = self.num_steps
             return Command(0, 0, 0, 0)
-        
-        # Turn left and increase progress
-        self.step += 1
-        return Command(0, 30, 0, 0)
+        #First turn left and increase progress, then turn right after reaching the max angle, and then back to center
+        if self.step < self.num_steps//4:
+            self.step += 1
+            return Command(0, -1, 0, 0)
+        elif self.step < self.num_steps//2:
+            self.step += 1
+            return Command(0, 1, 0, 0)
+        elif self.step < 3*self.num_steps//4:
+            self.step += 1
+            return Command(0, 1, 0, 0)
+        else: 
+            self.step += 1
+            return Command(0, -1, 0, 0)
     
-
     def full_rotate_scan(self):
         """
         Perfrom a scan to detect potential path around obstacles.

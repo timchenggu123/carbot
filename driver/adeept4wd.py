@@ -10,6 +10,7 @@ import busio
 from adafruit_pca9685 import PCA9685
 from adafruit_motor import motor, servo
 from gpiozero import DistanceSensor
+from gpiozero.pins.lgpio import LGPIOFactory
 from time import sleep
 
 class Adeept4WD:
@@ -66,6 +67,9 @@ Motor interface.
         self.right_motor_base_power = 0
         self.left_motor_speed = 0
         self.right_motor_speed = 0
+        
+        self.ultrasonic_factory = LGPIOFactory()
+        self.ultrasonic = DistanceSensor(echo=self.ultrasonic_ec, trigger=self.ultrasonic_tr, max_distance=2.0, pin_factory=self.ultrasonic_factory)
 
     
     #Common API
@@ -152,8 +156,13 @@ Motor interface.
                     self.motor_speeds = [0, 0, 0, 0]
 
     def get_distance(self):
-        ultrasonic = DistanceSensor(echo=self.ultrasonic_ec, trigger=self.ultrasonic_tr, max_distance=2.0)
-        return ultrasonic.distance*100  # return distance in cm
+        return self.ultrasonic.distance*100  # return distance in cm
+
+    def __del__(self):
+        self.stop()
+        #release gpio resources
+        self.ultrasonic_factory.close()
+        
 
 if __name__ == '__main__':
     car = Adeept4WD()
