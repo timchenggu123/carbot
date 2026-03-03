@@ -159,9 +159,6 @@ class Autopilot:
             self.max_dist = self.sensor_inputs.get_distance()
             self.target_angle = self.step * 360 / self.num_steps
 
-        if self.max_dist > 100:
-            self.step = self.num_steps
-            return Command(0, 0, 0, 0)
         #First turn left and increase progress, then turn right after reaching the max angle, and then back to center
         if self.step < self.num_steps//4:
             self.step += 1

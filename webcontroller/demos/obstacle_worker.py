@@ -25,7 +25,7 @@ class AutoDrivePilot(Autopilot):
     STATE_STRAFE_LEFT = 5
     STATE_STRAFE_RIGHT = 6
     STRAFE_STEPS = 200
-    PARALLEL_SCAN_THRESHOLD = 80
+    PARALLEL_SCAN_THRESHOLD = Autopilot.D_THRESHOLD_BASE * 0.9
     
     def parallel_scan(self, direction="r"):
         """
@@ -48,7 +48,7 @@ class AutoDrivePilot(Autopilot):
         self.distances.append(self.sensor_inputs.get_distance())
 
         # If the past 20 distances are all above the parallel scan threshold, we can assume the obstacle is not in front and skip the rest of the scan
-        if len(self.distances) >= 20 and all(d > self.PARALLEL_SCAN_THRESHOLD for d in self.distances[-20:]):
+        if len(self.distances) >= 20 and all(d > self.PARALLEL_SCAN_THRESHOLD for d in self.distances[-12:]):
             self.step = self.num_steps
             return Command(self.base_speed, 0, 0, 0, dir="right" if direction == "r" else "left")
         # Strafe and increase progress
@@ -76,9 +76,10 @@ class AutoDrivePilot(Autopilot):
                 if self.max_dist < self.d_threshold:
                     text_fifo.write_line_sync(f"Obstacle too close, backing up. d_threshold: {self.d_threshold}, max_dist: {self.max_dist}")
                     self.log(f"Obstacle too close, backing up, d_threshold: {self.d_threshold}, max_dist: {self.max_dist}")
-                    self.increase_scan_threshold()
-                    self.scan = self.full_rotate_scan
-                    return self.back()
+                    return self.stop()
+                    # self.increase_scan_threshold()
+                    # self.scan = self.scan
+                    # return self.back()
                 else:
                     print("!!!!!!!!!!", self.target_angle)
                     text_fifo.write_line_sync(f"Scan complete. Target angle: {self.target_angle}")

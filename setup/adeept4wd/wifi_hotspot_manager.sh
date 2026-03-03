@@ -1,11 +1,10 @@
 #!/bin/bash
 
 # Configuration parameters - modify these values according to your needs
-SYSTEM_WIFI_CONN="preconfigured"  # Default connection name for Bookworm system
 HOTSPOT_SSID="Adeept_Robot"
 HOTSPOT_PASSWORD="12345678"  # At least 8 characters
 HOTSPOT_INTERFACE="wlan0"
-WIFI_AP_GATEWAY="192.168.4.1"
+WIFI_AP_GATEWAY="192.168.6.1"
 
 # Wait for network service to be ready
 echo "Waiting for network service to start..."
@@ -13,41 +12,40 @@ while ! nmcli general status > /dev/null 2>&1; do
     sleep 1
 done
 
-# Check WiFi connection status (for preconfigured connection)
+# Find first available saved WiFi connection (excluding hotspot)
+get_available_wifi_connection() {
+    nmcli connection show | grep -v "$HOTSPOT_SSID" | grep "wifi" | awk '{print $1}' | head -n 1
+}
+
+# Check if currently connected to a WiFi network
 check_wifi_connection() {
-    # Check if preconfigured connection is active
-    nmcli connection show --active | grep -q "$SYSTEM_WIFI_CONN"
+    nmcli connection show --active | grep -q "wifi"
     return $?
 }
 
-# Get SSID of system preconfigured connection
-get_preconfigured_ssid() {
-    nmcli connection show "$SYSTEM_WIFI_CONN" | grep "ssid" | awk '{print $2}'
-}
-
-# Connect to system preconfigured WiFi
+# Connect to an available saved WiFi connection
 connect_wifi() {
-    local ssid=$(get_preconfigured_ssid)
-    echo "Attempting to connect to system preconfigured WiFi: $ssid (connection name: $SYSTEM_WIFI_CONN)"
+    local conn_name=$(get_available_wifi_connection)
     
-    # Check if connection exists
-    if ! nmcli connection show | grep -q "$SYSTEM_WIFI_CONN"; then
-        echo "Error: System preconfigured connection $SYSTEM_WIFI_CONN does not exist"
+    if [ -z "$conn_name" ]; then
+        echo "No saved WiFi connections found"
         return 1
     fi
     
+    echo "Attempting to connect to WiFi: $conn_name"
+    
     # Attempt connection
-    nmcli connection up "$SYSTEM_WIFI_CONN" ifname "$HOTSPOT_INTERFACE"
+    nmcli connection up "$conn_name" ifname "$HOTSPOT_INTERFACE"
     
     # Wait for connection to complete
     sleep 10
     
     # Check if connection was successful
     if check_wifi_connection; then
-        echo "System preconfigured WiFi connected successfully"
+        echo "WiFi connected successfully"
         return 0
     else
-        echo "Failed to connect to system preconfigured WiFi"
+        echo "Failed to connect to WiFi"
         return 1
     fi
 }

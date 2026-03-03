@@ -17,6 +17,8 @@ frame_fifo = AsyncFrameFIFO("camera")
 text_fifo = AsyncTextFIFO("camera")
 detection_frame_fifo = AsyncFrameFIFO("detection")
 detection_text_fifo = AsyncTextFIFO("detection")
+fly_hunt_frame_fifo = AsyncFrameFIFO("fly_hunt")
+fly_hunt_text_fifo = AsyncTextFIFO("fly_hunt")
 test_routine_text_fifo = AsyncTextFIFO("test_routine_worker")
 obstacle_text_fifo = AsyncTextFIFO("obstacle_worker")
 
@@ -25,6 +27,8 @@ frame_fifo.start_reading()
 text_fifo.start_reading()
 detection_text_fifo.start_reading()
 detection_frame_fifo.start_reading()
+fly_hunt_frame_fifo.start_reading()
+fly_hunt_text_fifo.start_reading()
 test_routine_text_fifo.start_reading()
 obstacle_text_fifo.start_reading()
 
@@ -35,6 +39,7 @@ _detection_lock = Lock()
 camera_process = None
 obstacle_process = None
 test_routine_process = None
+fly_hunt_process = None
 logs_dict = {}
 
 DEMOS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'demos'))
@@ -86,6 +91,28 @@ def stop_detection():
                 detection_process.kill()
             detection_process = None
             print("Detection worker stopped")
+
+
+def start_fly_hunt():
+    """Start the fly hunt worker process"""
+    global fly_hunt_process
+    if fly_hunt_process is not None:
+        return
+    fly_hunt_process = subprocess.Popen(["python3", os.path.join(DEMOS_DIR, "fly_hunt_worker.py")])
+    print("Fly hunt worker started")
+
+
+def stop_fly_hunt():
+    """Stop the fly hunt worker process"""
+    global fly_hunt_process
+    if fly_hunt_process:
+        fly_hunt_process.send_signal(signal.SIGTERM)
+        try:
+            fly_hunt_process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            fly_hunt_process.kill()
+        fly_hunt_process = None
+        print("Fly hunt worker stopped")
 
 def start_obstacle():
     """Start the obstacle worker process"""
@@ -197,6 +224,23 @@ def gen_detection_frames():
             print(f"Error getting detection frame: {e}")
             time.sleep(0.01)
 
+
+def gen_fly_hunt_frames():
+    """Generate fly hunt frames from async FIFO for HTTP streaming"""
+    while True:
+        try:
+            frame_data = fly_hunt_frame_fifo.get_frame(timeout=1.0)
+            if frame_data:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-Length: ' + f"{len(frame_data)}".encode() + b'\r\n\r\n' +
+                       frame_data + b'\r\n')
+            else:
+                time.sleep(0.01)
+        except Exception as e:
+            print(f"Error getting fly hunt frame: {e}")
+            time.sleep(0.01)
+
 @app.route('/')
 def index():
     return render_template("index.html")
@@ -230,6 +274,22 @@ def detection_route():
 def detection_stop_route():
     stop_detection()
     return "Detection stopped"
+
+
+@app.route('/fly_hunt')
+def fly_hunt_route():
+    global car
+    if car is not None:
+        car.stop()
+        car = None
+    start_fly_hunt()
+    return render_template("fly_hunt.html")
+
+
+@app.route('/fly_hunt/stop', methods=['GET', 'POST'])
+def fly_hunt_stop_route():
+    stop_fly_hunt()
+    return "Fly hunt stopped"
 
 
 @app.route('/camera/logs')
@@ -266,10 +326,33 @@ def detection_logs():
     logs_dict["detection"] = logs[-500:]  # Keep last 500 logs
     return jsonify({"logs": logs})
 
+
+@app.route('/fly_hunt/logs')
+def fly_hunt_logs():
+    """Get recent fly hunt logs from async text FIFO"""
+    global logs_dict
+    logs = logs_dict.get("fly_hunt", [])
+    for _ in range(50):
+        try:
+            text = fly_hunt_text_fifo.readline(timeout=0.001)
+            if text is None:
+                break
+            logs.append(text)
+        except Exception:
+            break
+    logs_dict["fly_hunt"] = logs[-500:]
+    return jsonify({"logs": logs})
+
 # Detection video route
 @app.route('/detection/video')
 def detection_video_feed():
     return Response(gen_detection_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/fly_hunt/video')
+def fly_hunt_video_feed():
+    return Response(gen_fly_hunt_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/control/move/<direction>')
@@ -365,12 +448,15 @@ if __name__ == '__main__':
         """Cleanup when server shuts down"""
         stop_camera()
         stop_detection()
+        stop_fly_hunt()
         stop_obstacle()
         stop_test_routine()
         frame_fifo.close()
         text_fifo.close()
         detection_text_fifo.close()
         detection_frame_fifo.close()
+        fly_hunt_frame_fifo.close()
+        fly_hunt_text_fifo.close()
         test_routine_text_fifo.close()
         obstacle_text_fifo.close()
     atexit.register(cleanup)

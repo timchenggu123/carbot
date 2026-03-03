@@ -61,6 +61,10 @@ Motor interface.
         
         self.motor_speeds = [0, 0, 0, 0] #Integer values from -100 to 100
         
+        # Pump setup (channel 4)
+        self.pump_channel = 5
+        self.pwm.channels[self.pump_channel].duty_cycle = 0  # Start with pump off
+        
         # Legacy API for motor speed control
         self.dir_current_angle = 0
         self.left_motor_base_power = 0
@@ -76,6 +80,7 @@ Motor interface.
     def stop(self):
         for m in self.motors:
             m.throttle = 0
+        self.pump_off()
 
     #Common API
     def set_cam_pan_angle(self, angle):
@@ -158,6 +163,16 @@ Motor interface.
     def get_distance(self):
         return self.ultrasonic.distance*100  # return distance in cm
 
+    #Common API
+    def pump_on(self):
+        """Turn pump on at full power"""
+        self.pwm.channels[self.pump_channel].duty_cycle = 65535
+    
+    #Common API
+    def pump_off(self):
+        """Turn pump off"""
+        self.pwm.channels[self.pump_channel].duty_cycle = 0
+
     def __del__(self):
         self.stop()
         #release gpio resources
@@ -175,36 +190,42 @@ if __name__ == '__main__':
     # car.stop()
 
     #Test Camera servos
-    car.set_cam_pan_angle(0)
-    car.set_cam_tilt_angle(0)
+    # car.set_cam_pan_angle(0)
+    # car.set_cam_tilt_angle(0)
 
-    from time import sleep
-    for i in range(0,-95,-5):
-        car.set_cam_pan_angle(i)
-        sleep(0.02)
-    for i in range(-90,95,5):
-        car.set_cam_pan_angle(i)
-        sleep(0.02)
-    for i in range(90,-5,-5):
-        car.set_cam_pan_angle(i)
-        sleep(0.02)
+    # from time import sleep
+    # for i in range(0,-95,-5):
+    #     car.set_cam_pan_angle(i)
+    #     sleep(0.02)
+    # for i in range(-90,95,5):
+    #     car.set_cam_pan_angle(i)
+    #     sleep(0.02)
+    # for i in range(90,-5,-5):
+    #     car.set_cam_pan_angle(i)
+    #     sleep(0.02)
 
-    for i in range(0,-35,-5):
-        car.set_cam_tilt_angle(i)
-        sleep(0.02)
-    for i in range(-30,35,5):
-        car.set_cam_tilt_angle(i)
-        sleep(0.02)
-    for i in range(30,-5,-5):
-        car.set_cam_tilt_angle(i)
-        sleep(0.02)
+    # for i in range(0,-35,-5):
+    #     car.set_cam_tilt_angle(i)
+    #     sleep(0.02)
+    # for i in range(-30,35,5):
+    #     car.set_cam_tilt_angle(i)
+    #     sleep(0.02)
+    # for i in range(30,-5,-5):
+    #     car.set_cam_tilt_angle(i)
+    #     sleep(0.02)
 
 
-    for turn in ["forward", "backward", "rotate-left", "rotate-right", "left", "right", "forward-left", "forward-right", "backward-left", "backward-right"]:
-        car.move(50, turn)
-        car.update_motor()
-        input(f"Testing move {turn}")
-    car.stop()
+    # for turn in ["forward", "backward", "rotate-left", "rotate-right", "left", "right", "forward-left", "forward-right", "backward-left", "backward-right"]:
+    #     car.move(50, turn)
+    #     car.update_motor()
+    #     input(f"Testing move {turn}")
+    # car.stop()
+
+    #Test pump
+    car.pump_on()
+    input = input("Pump on. Press Enter to turn off.")
+    car.pump_off()
+    
     
     
 
