@@ -7,6 +7,7 @@ import numpy as np
 
 from sensors.camera import Camera
 from utils.io import AsyncFrameFIFO, AsyncTextFIFO
+from utils.vehicle_logger import VehicleStateLogger
 from vision.fly.detect import FlyYOLO
 from driver.adeept4wd import Adeept4WD
 
@@ -40,6 +41,9 @@ LOOP_DELAY_SEC = 1 / 30
 STATE_PATROL = "PATROL"
 STATE_SCANNING = "SCANNING"
 STATE_ATTACKING = "ATTACKING"
+
+# Vehicle state logging
+STATE_LOG_INTERVAL = 1.0  # Seconds between CSV log entries (0 = log every frame)
 
 
 def pick_target(detections, img_width, img_height):
@@ -130,6 +134,7 @@ async def main():
     text_fifo = AsyncTextFIFO(FIFO_NAME)
     car = None
     cam = None
+    state_logger = None
 
     try:
         await text_fifo.write_line("Fly hunt worker starting...")
@@ -141,11 +146,17 @@ async def main():
 
         await text_fifo.write_line(f"Model loaded (Device: {fly_yolo.device}, FP16: {fly_yolo.use_fp16})")
 
+        # Initialize vehicle state logger
+        state_logger = VehicleStateLogger(log_interval=STATE_LOG_INTERVAL, mode="fly_hunt")
+        await text_fifo.write_line(f"Vehicle state logger initialized: {state_logger.get_log_file_path()}")
+
         frame_count = 0
         last_detections = []
         current_pan = 0
+        current_speed = 0
         scan_direction = 1
         start_time = time.time()
+        detection_count = 0  # Counter for saved detections
         
         # State machine variables
         state = STATE_PATROL
@@ -181,6 +192,7 @@ async def main():
                 # Move forward for PATROL_DURATION_SEC
                 car.move(PATROL_SPEED, "f")
                 car.update_motor()
+                current_speed = PATROL_SPEED
                 
                 step += 1
                 if step >= PATROL_DURATION_STEPS:
@@ -211,6 +223,7 @@ async def main():
             elif state == STATE_SCANNING:
                 # Vehicle stopped, scan camera side-to-side
                 car.stop()
+                current_speed = 0
                 
                 detections = fly_yolo.get_detection_centers(
                     img,
@@ -239,6 +252,15 @@ async def main():
                 if target is not None and detected_target is None:
                     detected_target = target
                     detected_target_pan = current_pan  # Remember pan angle at detection
+                    
+                    # Save detection image
+                    detection_count += 1
+                    saved_path = state_logger.save_detection_image(data, detection_count)
+                    if saved_path:
+                        await log(text_fifo, f"Fly detected! Image saved: {saved_path}")
+                    else:
+                        await log(text_fifo, f"Fly detected at pan={int(current_pan)}° (image save failed)")
+                    
                     await log(text_fifo, f"Target acquired at pan={int(current_pan)}°")
                 
                 # Complete scan when we've gone full sweep (back to start)
@@ -309,6 +331,16 @@ async def main():
                 car.stop()
 
 
+            # Log vehicle state to CSV
+            target_detected = detected_target is not None
+            state_logger.log_state(
+                state=state,
+                speed=int(current_speed),
+                cam_pan=int(current_pan),
+                cam_tilt=CAM_TILT,
+                target_detected=target_detected
+            )
+
             # Draw detections on frame
             target = pick_target(detections, img_width, img_height)
             for detection in detections:
@@ -345,6 +377,12 @@ async def main():
             await asyncio.sleep(LOOP_DELAY_SEC)
 
     finally:
+        try:
+            if state_logger is not None:
+                state_logger.close()
+        except Exception:
+            pass
+
         try:
             if car is not None:
                 car.stop()

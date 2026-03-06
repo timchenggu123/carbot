@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Fly Hunt - Files & Logs</h3>
+
+<div style="margin: 20px 0; padding: 20px; background: white; border-radius: 0.5rem; box-shadow: 0 0 5px rgba(0,0,0,0.1);">
+    <h4>Vehicle State Logs</h4>
+    <p style="color: #666; font-size: 0.9rem;">CSV files with vehicle state data: timestamp, state, speed, camera pan/tilt, and target detection status.</p>
+    
+    <div id="csvFilesList" style="text-align: left; margin: 15px 0;">
+        <p style="color: #999; font-style: italic;">Loading CSV files...</p>
+    </div>
+</div>
+
+<div style="margin: 20px 0; padding: 20px; background: white; border-radius: 0.5rem; box-shadow: 0 0 5px rgba(0,0,0,0.1);">
+    <h4>Detected Fly Images</h4>
+    <p style="color: #666; font-size: 0.9rem;">JPG images captured when a fly is detected during scanning.</p>
+    
+    <div id="imagesList" style="text-align: left; margin: 15px 0;">
+        <p style="color: #999; font-style: italic;">Loading images...</p>
+    </div>
+    
+    <div id="imagePreview" style="margin-top: 20px;">
+        <!-- Selected image preview will appear here -->
+    </div>
+</div>
+
+<a href="/fly_hunt" class="button">🔥 Back to Fly Hunt</a>
+<a href="/" class="button">🏠 Home</a>
+
+<style>
+    .file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        margin: 8px 0;
+        background: #f9f9f9;
+        border: 1px solid #e0e0e0;
+        border-radius: 0.4rem;
+        transition: background-color 0.2s;
+    }
+    .file-item:hover {
+        background: #f0f0f0;
+    }
+    .file-info {
+        flex-grow: 1;
+        text-align: left;
+    }
+    .file-name {
+        font-weight: 500;
+        color: #333;
+        word-break: break-word;
+    }
+    .file-size {
+        color: #999;
+        font-size: 0.85rem;
+        margin-top: 4px;
+    }
+    .file-actions {
+        display: flex;
+        gap: 8px;
+        margin-left: 10px;
+    }
+    .btn-download {
+        padding: 6px 12px;
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 0.4rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: background 0.2s;
+        display: inline-block;
+    }
+    .btn-download:hover {
+        background: #218838;
+    }
+    .btn-preview {
+        padding: 6px 12px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 0.4rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: background 0.2s;
+    }
+    .btn-preview:hover {
+        background: #0056b3;
+    }
+    .btn-delete {
+        padding: 6px 12px;
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 0.4rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: background 0.2s;
+    }
+    .btn-delete:hover {
+        background: #c82333;
+    }
+    .empty-message {
+        color: #999;
+        font-style: italic;
+        padding: 20px;
+        text-align: center;
+        background: #f9f9f9;
+        border-radius: 0.4rem;
+    }
+    .image-preview-container {
+        text-align: center;
+        margin-top: 15px;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 0.4rem;
+    }
+    .image-preview-container img {
+        max-width: 100%;
+        height: auto;
+        max-height: 500px;
+        border-radius: 0.4rem;
+        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+    .image-preview-info {
+        text-align: center;
+        margin-top: 10px;
+        color: #666;
+        font-size: 0.9rem;
+    }
+</style>
+
+<script>
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    function loadFiles() {
+        fetch('/fly_hunt/files/list')
+            .then(response => response.json())
+            .then(data => {
+                loadCsvFiles(data.csv_files);
+                loadDetectionImages(data.detection_images);
+            })
+            .catch(error => {
+                console.error('Error loading files:', error);
+                document.getElementById('csvFilesList').innerHTML = '<div class="empty-message">Error loading files</div>';
+                document.getElementById('imagesList').innerHTML = '<div class="empty-message">Error loading files</div>';
+            });
+    }
+
+    function loadCsvFiles(files) {
+        const container = document.getElementById('csvFilesList');
+        if (files.length === 0) {
+            container.innerHTML = '<div class="empty-message">No CSV files found</div>';
+            return;
+        }
+
+        let html = '';
+        files.forEach(file => {
+            html += `
+                <div class="file-item">
+                    <div class="file-info">
+                        <div class="file-name">📊 ${file.filename}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <div class="file-actions">
+                        <a href="/fly_hunt/files/download/log/${file.filename}" class="btn-download">⬇️ Download</a>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function loadDetectionImages(images) {
+        const container = document.getElementById('imagesList');
+        if (images.length === 0) {
+            container.innerHTML = '<div class="empty-message">No detection images found</div>';
+            return;
+        }
+
+        let html = '';
+        images.forEach(file => {
+            html += `
+                <div class="file-item">
+                    <div class="file-info">
+                        <div class="file-name">📷 ${file.filename}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn-preview" onclick="previewImage('${file.filename}', '${file.path}')">👁️ Preview</button>
+                        <a href="/fly_hunt/files/download/image/${file.filename}" class="btn-download">⬇️ Download</a>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function previewImage(filename, filepath) {
+        const previewContainer = document.getElementById('imagePreview');
+        previewContainer.innerHTML = `
+            <div class="image-preview-container">
+                <img src="/fly_hunt/files/download/image/${filename}" alt="${filename}">
+                <div class="image-preview-info">${filename}</div>
+            </div>
+        `;
+        previewContainer.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Load files on page load and refresh every 5 seconds
+    loadFiles();
+    setInterval(loadFiles, 5000);
+</script>
+{% endblock %}

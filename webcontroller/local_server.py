@@ -1,4 +1,4 @@
-from flask import Flask, Response, render_template, jsonify, request
+from flask import Flask, Response, render_template, jsonify, request, send_file
 import subprocess
 import signal
 import time
@@ -6,8 +6,11 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.io import AsyncFrameFIFO, AsyncTextFIFO
+from utils.vehicle_logger import VehicleStateLogger
 from threading import Lock
 from driver.adeept4wd import Adeept4WD
+from pathlib import Path
+import glob
 car = None
 
 app = Flask(__name__)
@@ -43,6 +46,10 @@ fly_hunt_process = None
 logs_dict = {}
 
 DEMOS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'demos'))
+
+# Global variables for fly hunt state logging
+fly_hunt_state_logger = None
+_fly_hunt_logger_lock = Lock()
 
 def start_camera():
     """Start the camera worker process"""
@@ -440,6 +447,82 @@ def obstacle_logs():
             break
     logs_dict["obstacle_worker"] = logs[-500:]  # Keep last 500 logs
     return jsonify({"logs": logs})
+
+
+@app.route('/fly_hunt/files')
+def fly_hunt_files_page():
+    """Show fly hunt files management page"""
+    return render_template("fly_hunt_files.html")
+
+
+@app.route('/fly_hunt/files/list')
+def fly_hunt_files_list():
+    """Get list of available vehicle state CSV and detection images"""
+    try:
+        home_dir = os.path.expanduser("~")
+        
+        # Find all vehicle state logs
+        csv_files = glob.glob(os.path.join(home_dir, "vehicle_state_fly_hunt_*.csv"))
+        csv_files = sorted(csv_files, reverse=True)
+        
+        # Find all detection images
+        detection_dir = os.path.join(home_dir, "fly_detections_fly_hunt")
+        images = []
+        if os.path.exists(detection_dir):
+            image_files = glob.glob(os.path.join(detection_dir, "*.jpg"))
+            images = sorted(image_files, reverse=True)
+        
+        # Format response
+        csv_list = [{"filename": os.path.basename(f), "path": f, "size": os.path.getsize(f)} for f in csv_files]
+        image_list = [{"filename": os.path.basename(f), "path": f, "size": os.path.getsize(f)} for f in images]
+        
+        return jsonify({
+            "csv_files": csv_list,
+            "detection_images": image_list,
+            "detection_dir": detection_dir
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/fly_hunt/files/download/log/<filename>')
+def fly_hunt_download_log(filename):
+    """Download a vehicle state CSV log file"""
+    try:
+        home_dir = os.path.expanduser("~")
+        filepath = os.path.join(home_dir, filename)
+        
+        # Security: ensure the file is actually in the home directory and is a CSV
+        if not filepath.startswith(home_dir) or not filename.startswith("vehicle_state_"):
+            return "Unauthorized", 403
+        
+        if not os.path.exists(filepath):
+            return "File not found", 404
+        
+        return send_file(filepath, as_attachment=True, download_name=filename)
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/fly_hunt/files/download/image/<filename>')
+def fly_hunt_download_image(filename):
+    """Download a fly detection image"""
+    try:
+        home_dir = os.path.expanduser("~")
+        detection_dir = os.path.join(home_dir, "fly_detections_fly_hunt")
+        filepath = os.path.join(detection_dir, filename)
+        
+        # Security: ensure the file is in the detection directory
+        if not filepath.startswith(detection_dir) or not filename.endswith(".jpg"):
+            return "Unauthorized", 403
+        
+        if not os.path.exists(filepath):
+            return "File not found", 404
+        
+        return send_file(filepath, as_attachment=True, download_name=filename)
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
 
 if __name__ == '__main__':
     import atexit
